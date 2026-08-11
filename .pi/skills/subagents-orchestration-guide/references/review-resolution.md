@@ -1,0 +1,98 @@
+# Review Resolution
+
+Use this protocol when a deliverable reviewer or verifier returns findings that can route correction, progression, or escalation. Verification output used as evidence by a downstream specialist remains part of that specialist handoff.
+
+Preserve reviewer/verifier evidence ownership so each gate converges on the governing sources; orchestrator reinterpretation would create unreviewed requirements and make approval or reconciliation non-terminal.
+
+## Verdict Gate
+
+Route a document-reviewer result in this order:
+
+- a `rejected` verdict first resolves its governing-source conflict or user-held decision before another review, regardless of its issue set.
+- an empty actionable issue set completes the review; downstream consumers receive the reviewed artifact path and pre-existing governing evidence only.
+- a non-empty actionable issue set continues to section 1.
+
+After `rejected` precedence, issue evidence governs routing when `approved` or `needs_revision` differs from the issue set. A completed review creates no author correction or downstream semantic input.
+
+For verifier, design-sync, code-reviewer, security-reviewer, and integration-test-reviewer results, enter section 1 only for the status or findings that their caller contract routes to correction.
+
+Use the result producer's declared verification mode:
+
+- **Reconciliation reviewer**: document-reviewer, code-reviewer, security-reviewer, and integration-test-reviewer accept `prior_feedback` and return `prior_feedback_reconciliation` after correction.
+- **Fresh verifier**: code-verifier and design-sync independently report the current state from their original inputs. After an applied correction, rerun them and adjudicate the current result; a decline-only result is complete.
+
+## 1. Assess Every Finding
+
+Before assigning a disposition, inspect the relevant parts of the current deliverable, cited repository evidence, and governing sources, treating reviewer assertions as evidence to verify.
+
+The orchestrator records one disposition for every actionable finding:
+
+| Disposition | Use when |
+|---|---|
+| `apply` | Leaving the current deliverable unchanged would prevent the confirmed outcome, violate a binding requirement, design decision, or repository rule, or leave required correctness or verification unsupported. |
+| `decline` | Leaving the current deliverable unchanged still achieves the confirmed outcome and satisfies binding constraints and required correctness and verification; the finding instead proposes added scope, a reversed exclusion, optional hardening or generic cleanup, duplicate proof, depends on a property outside the reviewer's declared artifact boundary, or concerns other work outside that boundary. |
+| `user_decision_required` | Resolving the finding would change a confirmed product outcome, exclusion, major approved design decision, or requires authority held only by the user. |
+
+A confirmed security risk or governing-source contradiction receives `apply` or `user_decision_required`; cost alone leaves that classification unchanged.
+
+For each finding record:
+
+- stable finding ID;
+- disposition;
+- governing basis and concrete evidence;
+- the reason when `decline`.
+
+The disposition controls routing. For `apply`, forward the complete reviewer finding object exactly as returned, preserving every field and value, and add only the `apply` disposition. This verbatim transfer keeps correction grounded in reviewed evidence; an orchestrator-authored paraphrase or supplement would become an unreviewed requirement. The author or executor determines the correction from the governing sources. When those sources cannot determine a correction that requires user-held authority, assign `user_decision_required` and continue at section 3.
+
+Only findings with `apply`, and maintained `apply` findings under section 3, enter an author or executor handoff.
+
+## 2. Revise and Reconsider
+
+Pass complete `apply` finding objects verbatim with their dispositions to the author or executor. When an executor is used, preserve its original `task_file` or four direct-scope fields and add the findings as `correction_findings`; correction remains inside the original execution scope.
+
+For a reconciliation reviewer, reuse the initial reviewer inputs and add `prior_feedback` as an array of `{ id, disposition, reason?, evidence }`.
+
+The correction assessment covers exactly every received item. The reviewer completes that scope and then:
+
+- mark an applied item `resolved` when current evidence shows that the artifact satisfies the finding and preserves the changed boundary; otherwise mark that item `maintained`, citing current evidence;
+- mark a declined finding `withdrawn` when current evidence and governing sources no longer support it; otherwise mark that item `maintained`, citing current evidence;
+- emit exactly one `prior_feedback_reconciliation` entry for every received ID.
+
+Derive the correction re-review status or verdict only from these reconciliation entries. An independent factual verifier may repeat an observed discrepancy; the orchestrator assigns its disposition from governing evidence.
+
+For a fresh verifier, rerun only after at least one applied correction. The latest result replaces the prior current-state result for corrected items. Retain a prior decline when the latest result reports the materially same claim or conflict with unchanged governing evidence; adjudicate new or materially changed findings before routing. Match materially identical findings by their claim/conflict and cited source/target evidence rather than relying only on a regenerated positional ID.
+
+## 3. Converge or Report
+
+Resolve correction re-review entries by their recorded `prior_disposition`:
+
+- `resolved` and `withdrawn` are complete;
+- `maintained` with `prior_disposition: apply` returns the original finding and the complete reconciliation entry verbatim through the same author or executor path, followed by another correction re-review;
+- `maintained` with `prior_disposition: decline` retains that decline and does not reopen the correction cycle.
+
+For a fresh verifier, a current finding with `apply` returns through the correction path, a current finding with a retained or newly assigned `decline` is complete, and an empty actionable result is complete.
+
+After the same `apply` finding remains material through two consecutive correction attempts, finish the correction cycle as incomplete and report the finding with its latest implementation and verification evidence. Apply the same terminal report to a required input or verification prerequisite that remains unavailable after in-scope recovery. Request user input only for `user_decision_required`, user-held authority, an irreversible action awaiting authorization, a changed product outcome, or a major approved design change. Progress after every `apply` correction is complete, every other actionable finding has a disposition, and every `user_decision_required` item has a recorded user decision.
+
+Handoffs contain this exact set:
+
+- the original review target identifier;
+- initial reviewer or verifier inputs unchanged when rechecking;
+- complete `apply` finding objects verbatim, with only their orchestrator dispositions added;
+- the complete reconciliation entry when a maintained `apply` finding returns to its author or executor;
+- declined IDs with reasons and evidence in `prior_feedback` when the next consumer accepts reviewer reconciliation; for a fresh verifier, retain those dispositions in orchestrator state and compare them with the latest result as described above.
+
+An author handoff contains no other orchestrator-authored semantic content.
+
+The final user report lists every declined actionable finding with its ID, governing reason, and evidence.
+
+## Resolved Verification Evidence
+
+After Review Resolution completes for code-verifier output, pass one `verification_evidence` object to the next document reviewer:
+
+- start from the latest verifier result after every applied correction and rerun;
+- preserve its `summary`, `inventoryCoverage`, and `limitations` unchanged;
+- preserve each remaining discrepancy unchanged and add its `disposition`, plus `dispositionReason` and `dispositionEvidence` for a decline;
+- include remaining discrepancies only after each carries a resolved `decline` disposition; applied corrections are represented by the latest verifier result.
+
+The document reviewer consumes this resolved evidence but does not own verifier-disposition convergence. Update and reverse-engineer flows may pass the current verifier result as `verification_evidence` before correction resolution when that result is the evidence being reviewed.

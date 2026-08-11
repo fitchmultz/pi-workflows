@@ -1,0 +1,43 @@
+# Operating System
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# Source Harness (auto-generated)
+.model/
+MODEL.md
+
+# Temporary Files
+tmp/
+temp/
+*.log
+*.tmp
+*.temp
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+
+# Misc
+*.bak
+*.backup
+
+# Local planning docs
+docs/plans/

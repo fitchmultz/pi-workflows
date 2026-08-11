@@ -1,0 +1,36 @@
+pre-commit:
+  jobs:
+    - name: sync-plugins
+      glob:
+        - "agents/**"
+        - "skills/**"
+        - ".plugin/marketplace.json"
+        - "scripts/sync-overrides.json"
+        - "workflows/**"
+        - "workflows-frontend/**"
+        - "workflows-fullstack/**"
+        - "skills-lite/**"
+      run: pnpm sync && git add workflows workflows-frontend workflows-fullstack skills-lite
+
+    - name: validate-plugins
+      glob:
+        - "agents/**"
+        - "skills/**"
+        - ".plugin/marketplace.json"
+        - "scripts/sync-overrides.json"
+        - "workflows/**"
+        - "workflows-frontend/**"
+        - "workflows-fullstack/**"
+        - "skills-lite/**"
+      run: |
+        model plugin validate .plugin/marketplace.json && \
+        model plugin validate workflows && \
+        model plugin validate workflows-frontend && \
+        model plugin validate workflows-fullstack && \
+        model plugin validate skills-lite
+
+    - name: check-skills-index
+      glob:
+        - "skills/*/SKILL.md"
+        - "skills/task-analyzer/references/skills-index.yaml"
+      run: pnpm check:skills-index

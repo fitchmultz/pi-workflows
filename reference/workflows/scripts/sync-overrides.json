@@ -1,0 +1,16 @@
+{
+  "$schema-note": "Per-plugin sync-time hooks applied by scripts/sync-plugins.mjs. Kept here (not under .plugin/) because that directory is reserved for official Source Harness plugin manifests, and `model plugin validate` rejects unknown keys in marketplace.json.",
+  "plugins": {
+    "workflows-frontend": {
+      "namespace_rewrites": [
+        { "from": "workflows:", "to": "workflows-frontend:" }
+      ]
+    },
+    "workflows-fullstack": {
+      "namespace_rewrites": [
+        { "from": "workflows-frontend:", "to": "workflows-fullstack:" },
+        { "from": "workflows:", "to": "workflows-fullstack:" }
+      ]
+    }
+  }
+}

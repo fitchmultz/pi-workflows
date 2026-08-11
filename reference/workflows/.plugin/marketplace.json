@@ -1,0 +1,323 @@
+{
+  "name": "workflows",
+  "owner": {
+    "name": "Shinsuke Kagawa",
+    "url": "https://github.com/shinpr"
+  },
+  "metadata": {
+    "description": "Skills + Subagents for Source Harness - Progressive skills for quick wins, orchestrated agents for full agentic coding"
+  },
+  "plugins": [
+    {
+      "name": "workflows",
+      "source": "./workflows",
+      "strict": true,
+      "version": "0.24.6",
+      "description": "Skills + Subagents for backend development - Use skills for coding guidance, or run recipe workflows for full orchestrated agentic coding with specialized agents",
+      "author": {
+        "name": "Shinsuke Kagawa",
+        "url": "https://github.com/shinpr"
+      },
+      "homepage": "https://github.com/shinpr/workflows",
+      "repository": "https://github.com/shinpr/workflows.git",
+      "license": "MIT",
+      "keywords": [
+        "workflows",
+        "best-practices",
+        "sub-agents",
+        "quality",
+        "development",
+        "coding-standards",
+        "testing",
+        "architecture",
+        "backend"
+      ],
+      "agents": [
+        "./agents/acceptance-test-generator.md",
+        "./agents/code-reviewer.md",
+        "./agents/codebase-analyzer.md",
+        "./agents/code-verifier.md",
+        "./agents/design-sync.md",
+        "./agents/document-reviewer.md",
+        "./agents/integration-test-reviewer.md",
+        "./agents/investigator.md",
+        "./agents/prd-creator.md",
+        "./agents/quality-fixer.md",
+        "./agents/requirement-analyzer.md",
+        "./agents/rule-advisor.md",
+        "./agents/scope-discoverer.md",
+        "./agents/security-reviewer.md",
+        "./agents/solver.md",
+        "./agents/task-decomposer.md",
+        "./agents/task-executor.md",
+        "./agents/technical-designer.md",
+        "./agents/verifier.md",
+        "./agents/work-planner.md"
+      ],
+      "skills": [
+        "./skills/ai-development-guide",
+        "./skills/coding-principles",
+        "./skills/documentation-criteria",
+        "./skills/external-resource-context",
+        "./skills/implementation-approach",
+        "./skills/integration-e2e-testing",
+        "./skills/llm-friendly-context",
+        "./skills/recipe-add-integration-tests",
+        "./skills/recipe-build",
+        "./skills/recipe-design",
+        "./skills/recipe-diagnose",
+        "./skills/recipe-implement",
+        "./skills/recipe-plan",
+        "./skills/recipe-reverse-engineer",
+        "./skills/recipe-review",
+        "./skills/recipe-task",
+        "./skills/recipe-update-doc",
+        "./skills/requirement-convergence",
+        "./skills/subagents-orchestration-guide",
+        "./skills/task-analyzer",
+        "./skills/testing-principles"
+      ]
+    },
+    {
+      "name": "workflows-frontend",
+      "source": "./workflows-frontend",
+      "strict": true,
+      "version": "0.24.6",
+      "description": "Skills + Subagents for React/TypeScript - Use skills for coding guidance, or run recipe workflows for full orchestrated agentic coding with specialized agents",
+      "author": {
+        "name": "Shinsuke Kagawa",
+        "url": "https://github.com/shinpr"
+      },
+      "homepage": "https://github.com/shinpr/workflows",
+      "repository": "https://github.com/shinpr/workflows.git",
+      "license": "MIT",
+      "keywords": [
+        "react",
+        "frontend",
+        "workflows",
+        "typescript",
+        "testing",
+        "quality",
+        "sub-agents",
+        "tdd",
+        "react-testing-library",
+        "best-practices"
+      ],
+      "agents": [
+        "./agents/acceptance-test-generator.md",
+        "./agents/code-reviewer.md",
+        "./agents/codebase-analyzer.md",
+        "./agents/code-verifier.md",
+        "./agents/design-sync.md",
+        "./agents/document-reviewer.md",
+        "./agents/integration-test-reviewer.md",
+        "./agents/investigator.md",
+        "./agents/prd-creator.md",
+        "./agents/quality-fixer-frontend.md",
+        "./agents/requirement-analyzer.md",
+        "./agents/rule-advisor.md",
+        "./agents/security-reviewer.md",
+        "./agents/solver.md",
+        "./agents/task-decomposer.md",
+        "./agents/task-executor-frontend.md",
+        "./agents/technical-designer-frontend.md",
+        "./agents/ui-analyzer.md",
+        "./agents/ui-spec-designer.md",
+        "./agents/verifier.md",
+        "./agents/work-planner.md"
+      ],
+      "skills": [
+        "./skills/ai-development-guide",
+        "./skills/coding-principles",
+        "./skills/documentation-criteria",
+        "./skills/external-resource-context",
+        "./skills/frontend-ai-guide",
+        "./skills/implementation-approach",
+        "./skills/integration-e2e-testing",
+        "./skills/llm-friendly-context",
+        "./skills/recipe-diagnose",
+        "./skills/recipe-front-adjust",
+        "./skills/recipe-front-build",
+        "./skills/recipe-front-design",
+        "./skills/recipe-front-plan",
+        "./skills/recipe-front-review",
+        "./skills/recipe-task",
+        "./skills/recipe-update-doc",
+        "./skills/requirement-convergence",
+        "./skills/subagents-orchestration-guide",
+        "./skills/task-analyzer",
+        "./skills/test-implement",
+        "./skills/testing-principles",
+        "./skills/typescript-rules"
+      ]
+    },
+    {
+      "name": "workflows-fullstack",
+      "source": "./workflows-fullstack",
+      "strict": true,
+      "version": "0.24.6",
+      "description": "Skills + Subagents for fullstack development (backend + React/TypeScript) - Use skills for coding guidance, or run recipe workflows for full orchestrated agentic coding with specialized agents",
+      "author": {
+        "name": "Shinsuke Kagawa",
+        "url": "https://github.com/shinpr"
+      },
+      "homepage": "https://github.com/shinpr/workflows",
+      "repository": "https://github.com/shinpr/workflows.git",
+      "license": "MIT",
+      "keywords": [
+        "fullstack",
+        "full-stack",
+        "workflows",
+        "best-practices",
+        "sub-agents",
+        "quality",
+        "development",
+        "coding-standards",
+        "testing",
+        "react",
+        "typescript",
+        "frontend",
+        "backend"
+      ],
+      "agents": [
+        "./agents/acceptance-test-generator.md",
+        "./agents/code-reviewer.md",
+        "./agents/codebase-analyzer.md",
+        "./agents/code-verifier.md",
+        "./agents/design-sync.md",
+        "./agents/document-reviewer.md",
+        "./agents/integration-test-reviewer.md",
+        "./agents/investigator.md",
+        "./agents/prd-creator.md",
+        "./agents/quality-fixer.md",
+        "./agents/quality-fixer-frontend.md",
+        "./agents/requirement-analyzer.md",
+        "./agents/rule-advisor.md",
+        "./agents/scope-discoverer.md",
+        "./agents/security-reviewer.md",
+        "./agents/solver.md",
+        "./agents/task-decomposer.md",
+        "./agents/task-executor.md",
+        "./agents/task-executor-frontend.md",
+        "./agents/technical-designer.md",
+        "./agents/technical-designer-frontend.md",
+        "./agents/ui-analyzer.md",
+        "./agents/ui-spec-designer.md",
+        "./agents/verifier.md",
+        "./agents/work-planner.md"
+      ],
+      "skills": [
+        "./skills/ai-development-guide",
+        "./skills/coding-principles",
+        "./skills/documentation-criteria",
+        "./skills/external-resource-context",
+        "./skills/frontend-ai-guide",
+        "./skills/implementation-approach",
+        "./skills/integration-e2e-testing",
+        "./skills/llm-friendly-context",
+        "./skills/recipe-add-integration-tests",
+        "./skills/recipe-build",
+        "./skills/recipe-design",
+        "./skills/recipe-diagnose",
+        "./skills/recipe-front-adjust",
+        "./skills/recipe-front-build",
+        "./skills/recipe-front-design",
+        "./skills/recipe-front-plan",
+        "./skills/recipe-front-review",
+        "./skills/recipe-fullstack-build",
+        "./skills/recipe-fullstack-implement",
+        "./skills/recipe-implement",
+        "./skills/recipe-plan",
+        "./skills/recipe-reverse-engineer",
+        "./skills/recipe-review",
+        "./skills/recipe-task",
+        "./skills/recipe-update-doc",
+        "./skills/requirement-convergence",
+        "./skills/subagents-orchestration-guide",
+        "./skills/task-analyzer",
+        "./skills/test-implement",
+        "./skills/testing-principles",
+        "./skills/typescript-rules"
+      ]
+    },
+    {
+      "name": "skills-lite",
+      "source": "./skills-lite",
+      "strict": true,
+      "version": "0.24.6",
+      "description": "Lightweight skills for users with existing workflows - coding best practices, testing principles, and design guidelines without recipe workflows or agents",
+      "author": {
+        "name": "Shinsuke Kagawa",
+        "url": "https://github.com/shinpr"
+      },
+      "homepage": "https://github.com/shinpr/workflows",
+      "repository": "https://github.com/shinpr/workflows.git",
+      "license": "MIT",
+      "keywords": [
+        "skills",
+        "best-practices",
+        "coding-standards",
+        "testing",
+        "tdd",
+        "design-docs",
+        "development",
+        "quality"
+      ],
+      "skills": [
+        "./skills/ai-development-guide",
+        "./skills/coding-principles",
+        "./skills/documentation-criteria",
+        "./skills/external-resource-context",
+        "./skills/frontend-ai-guide",
+        "./skills/implementation-approach",
+        "./skills/integration-e2e-testing",
+        "./skills/llm-friendly-context",
+        "./skills/requirement-convergence",
+        "./skills/test-implement",
+        "./skills/testing-principles",
+        "./skills/typescript-rules"
+      ]
+    },
+    {
+      "name": "metronome",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/shinpr/metronome.git"
+      },
+      "description": "Detects shortcut-taking behavior and guides Model to follow procedures step by step",
+      "category": "behavior-control",
+      "homepage": "https://github.com/shinpr/metronome"
+    },
+    {
+      "name": "discover",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/shinpr/model-code-discover.git"
+      },
+      "description": "Turns feature ideas into evidence-backed PRDs through structured discovery, 4 Risks assessment, and validation workflows",
+      "category": "product-quality",
+      "homepage": "https://github.com/shinpr/model-code-discover"
+    },
+    {
+      "name": "linear-prism",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/shinpr/linear-prism.git"
+      },
+      "description": "Turns requirements into structured Linear tasks — validates before decomposing, so downstream design starts clean",
+      "category": "workflow-orchestration",
+      "homepage": "https://github.com/shinpr/linear-prism"
+    },
+    {
+      "name": "pr-review",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/shinpr/pr-review-skill.git",
+        "path": "plugins/pr-review"
+      },
+      "description": "Reviews GitHub PRs with Source Harness or Codex reviewers on deterministic PR snapshots, repo-specific quality criteria, and severity-gated posting with approval",
+      "category": "quality-enforcement",
+      "homepage": "https://github.com/shinpr/pr-review-skill"
+    }
+  ]
+}
