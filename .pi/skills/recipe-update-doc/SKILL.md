@@ -58,7 +58,7 @@ Target document → change clarification
 
 **Responsibility Boundary**: This skill completes with updated document approval.
 
-Target document: $ARGUMENTS
+Target document: the skill invocation arguments
 
 ## Execution Flow
 
@@ -70,8 +70,8 @@ Discover the existing documents under `docs/design/`, `docs/prd/`, and `docs/adr
 
 | Situation | Action |
 |-----------|--------|
-| $ARGUMENTS specifies a path | Use specified document |
-| $ARGUMENTS describes a topic | Search documents matching the topic |
+| the skill invocation arguments specifies a path | Use specified document |
+| the skill invocation arguments describes a topic | Search documents matching the topic |
 | Multiple candidates found | Present options with ask_question |
 | No documents found | Report and end (document creation is out of scope) |
 

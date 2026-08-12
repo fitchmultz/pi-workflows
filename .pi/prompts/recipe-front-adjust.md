@@ -1,5 +1,6 @@
 ---
 description: Adjust an already-implemented UI in-session with verification against the design source
+argument-hint: "[input]"
 ---
 Execute the llm-friendly-context skill (/skill:llm-friendly-context) before writing subagent prompts, handoffs, or generated artifacts.
 

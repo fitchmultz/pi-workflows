@@ -32,14 +32,14 @@ Before the first finding disposition, read `references/review-resolution.md` fro
 
 **CRITICAL**: Run layer-appropriate quality-fixer(s) before every commit.
 
-Work plan: $ARGUMENTS
+Work plan: the skill invocation arguments
 
 ## Pre-execution Prerequisites
 
 ### Work Plan Resolution
 
 Before any task processing, locate the work plan. Resolution rule:
-1. Use the work plan explicitly supplied in `$ARGUMENTS` when present.
+1. Use the work plan explicitly supplied in `the skill invocation arguments` when present.
 2. Otherwise group layer-aware task files by the existing `{plan-name}-{backend|frontend}-task-*.md` naming contract and map each group to `docs/plans/{plan-name}.md`.
 3. When task groups produce no candidate, use the only Work Plan under `docs/plans/` when exactly one exists.
 4. Select the sole candidate. When multiple candidates remain, present them for selection. When none exists, continue through the missing-prerequisite branch below.

@@ -9,7 +9,7 @@ Execute the subagents-orchestration-guide skill (/skill:subagents-orchestration-
 
 **Context**: Diagnosis flow to identify root cause and present solutions
 
-Target problem: $ARGUMENTS
+Target problem: the skill invocation arguments
 
 ## Orchestrator Definition
 

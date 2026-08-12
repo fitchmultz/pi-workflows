@@ -45,7 +45,7 @@ Follow the planning process below:
 ## Execution Process
 
 ### Step 1: Design Document Selection
-   - Use the Design Doc explicitly supplied in `$ARGUMENTS` when present
+   - Use the Design Doc explicitly supplied in `the skill invocation arguments` when present
    - Otherwise use the only Design Doc under `docs/design/` when exactly one exists
    - Report when none exist; when multiple exist, present them for selection
 

@@ -33,7 +33,7 @@ At each subagent invocation below, build the prompt as a mechanical extraction: 
 ## Execution Decision Flow
 
 ### 1. Current Situation Assessment
-Instruction Content: $ARGUMENTS
+Instruction Content: the skill invocation arguments
 
 Assess the current situation:
 

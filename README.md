@@ -1,104 +1,140 @@
 # pi-workflows
 
-A pi-native port of shinpr's **workflows** project (the recipe workflows, specialist subagents, and
-supporting skills, by Shinsuke Kagawa, `github.com/shinpr`), recreated for
-[pi](https://github.com/earendil-works/pi-mono) using pi's own extension, skill, prompt-template,
-and subagent mechanisms.
-
-Upstream source is vendored in `reference/workflows` (MIT, pinned at commit
-`416af890969891658619fafcf794aeab5b26a366`, 2026-08-09, with harness-specific naming scrubbed).
-All pi artifacts are generated from it by `scripts/build.mjs`; do not edit `.pi/skills`,
-`.pi/agents`, or `.pi/prompts` by hand.
-
-## Quick start
-
-Everything is project-local. Run pi from this repository root and all resources load automatically
-(the repo is covered by pi's normal project-trust flow; nothing is installed globally):
+Two ways to run work in [pi](https://github.com/earendil-works/pi-mono). Both stay in this repo. Nothing is installed globally.
 
 ```bash
 cd pi-workflows
 pi
 ```
 
-Then, inside pi:
+## Which one do I use?
+
+| You want… | Use | Example |
+|---|---|---|
+| One change, with design / review gates | a **recipe** | `/recipe-implement "Add rate limiting"` |
+| Design only, no code yet | a **recipe** | `/recipe-design "Account recovery"` |
+| A bug you do not understand yet | a **recipe** | `/recipe-diagnose "login 500s after deploy"` |
+| The same step on many files, or more agents than one chat can hold | a **scripted workflow** | type `use a workflow to audit every route for missing auth` |
+| Cross-check a question across sources | **bundled script** | `/deep-research What changed in Node's permission model between v20 and v22?` |
+| Repeat a fan-out you already liked | a **saved script** | `/workflows` → Save, then `/audit-routes` |
+
+Recipes keep you in one conversation with specialist agents. Scripted workflows move the plan into JavaScript so intermediate results stay in variables, not in the chat.
+
+## Recipes — staged product work
+
+Type `/recipe` and pick one. Pass the request after the command.
 
 ```
-/workflows                              # status: recipes, skills, agents, required tools
-/recipe-implement "Add rate limiting"   # full-cycle orchestrated implementation
-/recipe-design "..."                    # design only
-/recipe-diagnose "..."                  # investigate a problem
-/skill:coding-principles                # individual skills, like upstream
+/recipe-implement "Add rate limiting to the public API"
+/recipe-front-design "Add account recovery screens"
+/recipe-review docs/design/rate-limit.md
 ```
 
-Recipe commands are pi prompt templates (`.pi/prompts/recipe-*.md`), so they autocomplete and
-substitute `$ARGUMENTS` exactly like the upstream plugin's skill commands. Each recipe skill also
-remains available as `/skill:recipe-<name>`.
+**When a recipe is the right tool**
 
-### Required pi packages
+- The outcome is still being agreed, or you need a PRD / Design Doc / Work Plan.
+- You want stop-points before implementation.
+- You want named specialists (reviewer, executor, verifier) with a handoff you can inspect.
 
-The workflows orchestrate through these tools; on a stock pi install they are provided by:
+`/recipe-implement` is the full backend/general path. Frontend is `/recipe-front-design` → `/recipe-front-plan` → `/recipe-front-build`. Full-stack is `/recipe-fullstack-implement`.
 
-| Tool | Provided by |
-|---|---|
-| `subagent` | [pi-subagents](https://github.com/fitchmultz/pi-subagents) |
-| `todo_list` | pi-todo-list |
-| `ask_question` | pi-ask-question |
-| `agent_browser_web_search` | pi-agent-browser-native |
+Recipe commands expand `$ARGUMENTS`. `/workflows` lists all 17 recipes, 31 skills, and 25 agents.
 
-Run `/workflows` to verify they are active. Without them the skills and recipe commands still load,
-but orchestration steps that call those tools cannot execute.
+Recipes need these tools: `subagent`, `todo_list`, `ask_question`, `agent_browser_web_search`. `/workflows` says if they are missing.
 
-## What was ported
+## Scripted workflows — large fan-out
 
-The upstream marketplace ships three workflow plugins (backend, frontend, fullstack) generated from
-one canonical `agents/` + `skills/` tree. This port carries the canonical superset — identical to the
-fullstack plugin: **17 recipe workflows, 14 supporting skills, 25 specialist agents**.
-Pi loads skills progressively (only descriptions enter context), so the superset costs nothing over
-the individual plugins. The marketplace's external URL plugins (metronome, discover, linear-prism,
-pr-review) are separate repos and were not part of this port.
+Type a trigger in the prompt. It highlights. Alt+W (Option+W) dismisses the highlight if you did not mean it.
 
-## How the upstream harness maps to pi
+```
+use a workflow to audit every route handler under src/routes/ for missing auth
+run a workflow to migrate src/components/ from styled-components to Tailwind
+ultracode: keep running tsc until it passes or two rounds make no progress
+```
 
-| Upstream harness | pi |
-|---|---|
-| Plugin (`workflows-*`) | This project-local extension + resources under `.pi/` |
-| `/recipe-*` skill commands | Prompt templates `.pi/prompts/recipe-*.md` (native expansion, `$ARGUMENTS`) |
-| `agents/*.md` subagents | pi-subagents definitions `.pi/agents/*.md` (fresh context, own system prompt, no nested delegation) |
-| `skills/` (SKILL.md) | pi skills `.pi/skills/` — same Agent Skills standard, loaded verbatim |
-| Agent tool (`subagent_type: "plugin:name"`) | `subagent` tool (`agent: "name"`) |
-| `TaskCreate` / `TaskUpdate` | `todo_list` |
-| `AskUserQuestion` | `ask_question` |
-| `Read/Write/Edit/MultiEdit/Bash/Grep/Glob/LS` | `read/write/edit/bash/grep/find/ls` (pi `edit` covers MultiEdit) |
-| `WebSearch` / `WebFetch` | `agent_browser_web_search` / `agent_browser` |
-| task-executor's recommendation result field | renamed to `executor_recommendation` |
+The model writes a script and calls the `workflow` tool. You get a card:
 
-Skill bodies, agent prompts, flow logic, stopping points, and review gates are upstream text with
-only the identifier translations above — the workflow behavior is the real thing, not a rewrite.
+- **Once** — run this time
+- **Always** — run and skip the card for this name in this repo
+- **View** — read or edit the script, then you return to the card
+- **Deny** — do not run
+
+Or skip the model and run the bundled one:
+
+```
+/deep-research How do our three competitors document rate limiting?
+```
+
+**When a script is the right tool**
+
+- Dozens of files, one check each, then a merge step.
+- Independent agents should review each other's findings.
+- You want to pause, resume, or save the orchestration and rerun it.
+
+**When it is the wrong tool**
+
+- A one-file fix, a question, or anything that still needs a product decision. Use a recipe, or just talk.
+
+### Size
+
+Advice to the model when it writes a script. Not a hard cap. Runtime still limits 16 at a time, 1000 per run.
+
+```
+/workflow-size              # show (default medium, fewer than 15 agents)
+/workflow-size small        # fewer than 5
+/workflow-size large        # fewer than 50
+/workflow-size unrestricted
+```
+
+Stored in `.pi/workflow-size` in this repo. `--workflow-size medium` overrides for one process.
+
+### Watch and save
+
+```
+/workflows        # status, then pick a run: View / Pause / Resume / Stop / Save
+```
+
+Save writes `.pi/workflows/<name>.js`. That name becomes `/<name>` next session.
+
+A script looks like this:
+
+```js
+export const meta = {
+  name: 'audit-routes',
+  description: 'Audit every route handler for missing auth checks',
+}
+
+const found = await agent('List every .ts file under src/routes/.', {
+  schema: { type: 'object', required: ['files'], properties: { files: { type: 'array', items: { type: 'string' } } } },
+})
+
+const audits = await pipeline(found.files, file =>
+  agent(`Audit ${file} for missing authentication checks.`, { label: file }),
+)
+
+return audits.filter(Boolean)
+```
+
+`agent()` returns `null` if that worker is stopped or fails. The script cannot import, require, fetch, or touch `process`.
 
 ## Layout
 
 ```
-.pi/
-  extensions/pi-workflows/index.ts   # /workflows status command
-  prompts/recipe-*.md                # 17 recipe slash commands (generated)
-  skills/<name>/                     # 31 skills, translated (generated)
-  agents/<name>.md                   # 25 pi-subagents agent definitions (generated)
-reference/workflows/                 # pinned upstream source (MIT)
-scripts/build.mjs                    # codemod: reference/ → .pi/{skills,agents,prompts}
+.pi/extensions/pi-workflows/   # commands, tool, runtime, highlight, card
+.pi/prompts/recipe-*.md        # 17 recipe slash commands
+.pi/skills/                    # 31 skills
+.pi/agents/                    # 25 specialist agents
+.pi/workflows/                 # saved scripts (optional)
+.pi/workflow-size              # size guideline (optional)
+.pi/workflow-allow             # Always names (optional)
+reference/workflows/           # upstream recipe source (MIT)
 ```
-
-## Regenerating after an upstream update
 
 ```bash
-# refresh the vendored copy under reference/workflows (re-clone from the upstream repo), then:
-node scripts/build.mjs        # regenerate
-node scripts/build.mjs --check            # validate without regenerating
+node scripts/build.mjs
+node scripts/build.mjs --check
+node --test scripts/*.test.mjs
 ```
 
-The build fails loudly on unmapped tools, unresolved agent/skill references, count mismatches,
-or any upstream-only identifier surviving translation.
-
-## License
-
-Upstream content: MIT, © Shinsuke Kagawa (see `reference/workflows/LICENSE`).
-The porting script and extension in this repo are MIT as well.
+Upstream recipe content: MIT, © Shinsuke Kagawa (`reference/workflows/LICENSE`).
+This repo's port and extension: MIT.

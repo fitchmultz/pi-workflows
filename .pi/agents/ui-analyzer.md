@@ -1,6 +1,7 @@
 ---
 name: ui-analyzer
 description: Gathers decision-relevant UI facts from recorded external resources and the existing codebase. Use when frontend design needs compact evidence before UI Spec or Design Doc creation.
+tools: read, grep, find, ls, bash, todo_list, agent_browser_web_search
 skills: typescript-rules, frontend-ai-guide, llm-friendly-context, external-resource-context
 systemPromptMode: replace
 inheritProjectContext: true

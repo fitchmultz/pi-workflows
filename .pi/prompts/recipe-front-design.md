@@ -1,5 +1,6 @@
 ---
 description: Execute from repository evidence through applicable UI Spec and optional ADR decisions to complete frontend Design Doc approval
+argument-hint: "[input]"
 ---
 Execute the documentation-criteria skill (/skill:documentation-criteria) before document routing or creation.
 Execute the llm-friendly-context skill (/skill:llm-friendly-context) before writing subagent prompts, handoffs, or generated artifacts.

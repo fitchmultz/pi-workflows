@@ -30,7 +30,7 @@ Before the first finding disposition, read `references/review-resolution.md` fro
 
 At each subagent invocation below, build the prompt as a mechanical extraction: copy the named source values into the exact fields, apply only the declared serialization, then invoke immediately.
 
-Document paths: $ARGUMENTS
+Document paths: the skill invocation arguments
 
 ## Prerequisites
 
@@ -41,7 +41,7 @@ Document paths: $ARGUMENTS
 
 ### Step 1: Discover and Validate Documents
 
-Confirm `$ARGUMENTS` names at least one existing document path; report and end when it is empty or every path is unresolvable. Then discover the remaining Design Docs, UI Specs, and PRDs under `docs/design/`, `docs/ui-spec/`, and `docs/prd/`.
+Confirm `the skill invocation arguments` names at least one existing document path; report and end when it is empty or every path is unresolvable. Then discover the remaining Design Docs, UI Specs, and PRDs under `docs/design/`, `docs/ui-spec/`, and `docs/prd/`.
 
 Classify discovered documents by filename:
 - Filename contains `backend` → **Design Doc (backend)**

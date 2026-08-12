@@ -1,5 +1,6 @@
 ---
 description: Generate PRD and Design Docs from existing codebase through discovery, generation, verification, and review workflow
+argument-hint: "[input]"
 ---
 Execute the llm-friendly-context skill (/skill:llm-friendly-context) before writing subagent prompts, handoffs, or generated artifacts.
 Execute the subagents-orchestration-guide skill (/skill:subagents-orchestration-guide) before making workflow decisions, invoking agents, or resolving findings.

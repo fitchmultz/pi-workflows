@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-// build.mjs — regenerate the pi-native port (.pi/skills, .pi/agents) from the
-// vendored workflows source in reference/.
+// build.mjs — regenerate .pi/skills, .pi/agents, and .pi/prompts from reference/.
 //
 // Usage: node scripts/build.mjs [--check]
-//   (no flag)  wipe and regenerate .pi/skills and .pi/agents
+//   (no flag)  wipe and regenerate those trees
 //   --check    verify generated output is present, complete, and consistent
 //
 // The port mirrors upstream's own sync-plugins.mjs architecture: canonical
@@ -88,7 +87,11 @@ export function transformContent(input) {
 function toPromptTemplate(content) {
   const { fields, body } = parseFrontmatter(content);
   const description = fields.get("description") ?? "";
-  return `---\ndescription: ${description}\n---\n${body.trim()}\n`;
+  return `---\ndescription: ${description}\nargument-hint: "[input]"\n---\n${body.trim()}\n`;
+}
+
+function skillInvocationArgs(content) {
+  return content.replaceAll("$ARGUMENTS", "the skill invocation arguments");
 }
 
 // Upstream tool names → pi built-in tool names (agent frontmatter `tools:`).
@@ -105,7 +108,11 @@ const TOOL_MAP = new Map([
   ["TaskUpdate", "todo_list"],
   ["WebSearch", "agent_browser_web_search"],
   ["WebFetch", "agent_browser"],
+  ["AskUserQuestion", "ask_question"],
+  ["NotebookEdit", "edit"],
 ]);
+
+const READ_TOOLS = "read, grep, find, ls, bash, todo_list, agent_browser_web_search";
 
 // ---------------------------------------------------------------------------
 // Frontmatter helpers (line-oriented; upstream files use simple YAML subset)
@@ -140,14 +147,20 @@ function transformAgent(content) {
   const lines = [`name: ${name}`, `description: ${description}`];
 
   const toolsRaw = fields.get("tools");
+  const disallowed = new Set(
+    (fields.get("disallowedTools") ?? "").split(",").map((x) => x.trim()).filter(Boolean),
+  );
   if (toolsRaw) {
     const mapped = [];
     for (const t of toolsRaw.split(",").map((x) => x.trim()).filter(Boolean)) {
+      if (disallowed.has(t)) continue;
       const piTool = TOOL_MAP.get(t);
       if (!piTool) throw new Error(`unmapped upstream tool '${t}' in agent ${name}`);
       if (!mapped.includes(piTool)) mapped.push(piTool);
     }
     lines.push(`tools: ${mapped.join(", ")}`);
+  } else if (disallowed.size) {
+    lines.push(`tools: ${READ_TOOLS}`);
   }
 
   const skills = fields.get("skills");
@@ -198,7 +211,9 @@ function generate() {
     if (dir.startsWith("recipe-")) {
       const skillFile = join(SRC_SKILLS, dir, "SKILL.md");
       if (existsSync(skillFile)) {
-        writeFileSync(join(DST_PROMPTS, `${dir}.md`), toPromptTemplate(transformContent(readFileSync(skillFile, "utf8"))));
+        const translated = transformContent(readFileSync(skillFile, "utf8"));
+        writeFileSync(join(DST_SKILLS, dir, "SKILL.md"), skillInvocationArgs(translated));
+        writeFileSync(join(DST_PROMPTS, `${dir}.md`), toPromptTemplate(translated));
       }
     }
   }
@@ -215,7 +230,7 @@ function* walk(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, entry.name);
     if (entry.isDirectory()) yield* walk(p);
-    else if (entry.name.endsWith(".md")) yield p;
+    else yield p;
   }
 }
 
@@ -267,15 +282,15 @@ function check() {
     [/\bAgent (?:tool|prompts?|invocation|calls?|routing)\b/g, "upstream Agent tool ref"],
     [/\bWebSearch\b|\bWebFetch\b/g, "upstream web tool"],
     [/Execute Skill:/g, "Execute Skill:"],
-    [/\$ARGUMENTS/g, "$ARGUMENTS outside recipes"],
+    [/\$ARGUMENTS/g, "$ARGUMENTS outside prompts"],
+    [new RegExp(["cla", "ude"].join(""), "i"), "forbidden name"],
   ];
-  for (const dir of [DST_SKILLS, DST_AGENTS]) {
+  for (const dir of [DST_SKILLS, DST_AGENTS, DST_PROMPTS, join(ROOT, ".pi", "extensions")]) {
     if (!existsSync(dir)) continue;
     for (const file of walk(dir)) {
       const text = readFileSync(file, "utf8");
       for (const [re, label] of residualPatterns) {
-        // $ARGUMENTS is legitimately present in recipe skills (substituted by the extension at runtime).
-        if (label.startsWith("$ARGUMENTS") && file.includes(`${sep}recipe-`)) continue;
+        if (label.startsWith("$ARGUMENTS") && file.includes(`${sep}prompts${sep}`)) continue;
         const hits = text.match(re);
         if (hits) problems.push(`${file}: residual ${label} x${hits.length}`);
       }
@@ -304,15 +319,17 @@ function check() {
   return problems;
 }
 
-if (!CHECK) {
-  generate();
+export { generate, check, toPromptTemplate, transformAgent, skillInvocationArgs };
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  if (!CHECK) generate();
+  const problems = check();
+  const skillCount = existsSync(DST_SKILLS) ? readdirSync(DST_SKILLS).length : 0;
+  const agentCount = existsSync(DST_AGENTS) ? readdirSync(DST_AGENTS).length : 0;
+  if (problems.length) {
+    console.error(`pi-workflows build: ${problems.length} problem(s)`);
+    for (const p of problems) console.error(`  - ${p}`);
+    process.exit(1);
+  }
+  console.log(`pi-workflows build OK: ${skillCount} skills, ${agentCount} agents (${CHECK ? "check only" : "regenerated"})`);
 }
-const problems = check();
-const skillCount = existsSync(DST_SKILLS) ? readdirSync(DST_SKILLS).length : 0;
-const agentCount = existsSync(DST_AGENTS) ? readdirSync(DST_AGENTS).length : 0;
-if (problems.length) {
-  console.error(`pi-workflows build: ${problems.length} problem(s)`);
-  for (const p of problems) console.error(`  - ${p}`);
-  process.exit(1);
-}
-console.log(`pi-workflows build OK: ${skillCount} skills, ${agentCount} agents (${CHECK ? "check only" : "regenerated"})`);

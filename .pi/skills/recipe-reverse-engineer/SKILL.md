@@ -9,7 +9,7 @@ Execute the subagents-orchestration-guide skill (/skill:subagents-orchestration-
 
 **Context**: Reverse engineering workflow to create documentation from existing code
 
-Target: $ARGUMENTS
+Target: the skill invocation arguments
 
 ## Orchestrator Definition
 

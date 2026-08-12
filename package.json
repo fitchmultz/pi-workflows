@@ -1,0 +1,22 @@
+{
+  "name": "pi-workflows",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Pi-native recipe workflows and scripted agent()/pipeline() runtime",
+  "author": "Mitch Fultz (https://github.com/fitchmultz)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fitchmultz/pi-workflows.git"
+  },
+  "homepage": "https://github.com/fitchmultz/pi-workflows#readme",
+  "bugs": {
+    "url": "https://github.com/fitchmultz/pi-workflows/issues"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check",
+    "test": "node --test scripts/*.test.mjs"
+  }
+}

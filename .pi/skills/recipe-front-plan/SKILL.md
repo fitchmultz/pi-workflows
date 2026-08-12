@@ -45,7 +45,7 @@ Follow the planning process below:
 ## Execution Process
 
 ### Step 1: Design Document Selection
-   - Use the Design Doc explicitly supplied in `$ARGUMENTS` when present
+   - Use the Design Doc explicitly supplied in `the skill invocation arguments` when present
    - Otherwise use the only Design Doc under `docs/design/` when exactly one exists
    - Resolve the UI Spec only from the selected Design Doc's `Referenced UI Spec` path
    - Report when no Design Doc exists; when multiple Design Docs exist, present them for selection

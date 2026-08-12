@@ -31,14 +31,14 @@ The design-side path applies when the discrepancy reflects code that was correct
 
 At each subagent invocation below, build the prompt as a mechanical extraction: copy the named source values into the exact fields, apply only the declared serialization, then invoke immediately.
 
-Design Doc: $ARGUMENTS
+Design Doc: the skill invocation arguments
 
 ## Execution Flow
 
 ### Step 1: Prerequisite Check
 Derive `implementationFiles` from paths changed between the current branch's merge base with the repository's default branch and the current repository state, including committed changes, working-tree changes, and untracked files. `implementationFiles` contains each changed path whose contents implement or verify the reviewed behavior or control its schema, build, deployment, or runtime behavior, including source files, tests, migrations, executable scripts, and behavior-affecting configuration. Governing documents and Work Plans retain their dedicated roles in document selection and governing-document inputs; task files and documentation-only paths remain outside this recipe's code and security review inputs.
 
-Use the Design Doc explicitly supplied in `$ARGUMENTS`. When omitted, first use a Work Plan whose declared target files or responsibilities intersect `implementationFiles` and take its recorded Design Doc path. When that does not produce one candidate, use the sole Design Doc under `docs/design/`. Present candidates only when multiple governing Design Docs remain; report a missing prerequisite when none exists.
+Use the Design Doc explicitly supplied in `the skill invocation arguments`. When omitted, first use a Work Plan whose declared target files or responsibilities intersect `implementationFiles` and take its recorded Design Doc path. When that does not produce one candidate, use the sole Design Doc under `docs/design/`. Present candidates only when multiple governing Design Docs remain; report a missing prerequisite when none exists.
 
 ### Step 2: Execute code-reviewer
 Invoke code-reviewer using subagent tool:

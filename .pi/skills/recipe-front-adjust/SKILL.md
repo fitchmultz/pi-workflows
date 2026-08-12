@@ -53,7 +53,7 @@ Adjustment request → conditional external resource evidence
 
 **Escalation Boundary**: Escalate to the full frontend design phase when the request crosses a responsibility or approved UI boundary, requires a complete Design Doc, or contains a technical choice that passes documentation-criteria's Choice and Durability filters.
 
-Adjustment request: $ARGUMENTS
+Adjustment request: the skill invocation arguments
 
 ## Execution Flow
 

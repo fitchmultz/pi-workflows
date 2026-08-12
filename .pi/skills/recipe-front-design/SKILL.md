@@ -15,7 +15,7 @@ Coordinate a Medium/Large frontend design from evidence to an applicable UI Spec
 
 The frontend Design Doc always carries the complete implementation design. An ADR batch narrows qualifying technical choices; an applicable UI Spec owns UI structure and behavior that remain to be designed.
 
-Requirements: $ARGUMENTS
+Requirements: the skill invocation arguments
 
 ## Flow
 

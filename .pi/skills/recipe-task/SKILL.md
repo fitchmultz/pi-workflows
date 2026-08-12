@@ -9,7 +9,7 @@ Execute the subagents-orchestration-guide skill (/skill:subagents-orchestration-
 
 # Task Execution with Metacognitive Analysis
 
-Task: $ARGUMENTS
+Task: the skill invocation arguments
 
 ## Mandatory Execution Process
 
@@ -18,7 +18,7 @@ Task: $ARGUMENTS
 Invoke rule-advisor using subagent tool:
 - `agent`: "rule-advisor"
 - `description`: "Rule selection"
-- `prompt`: "Task: $ARGUMENTS. Select appropriate rules and perform metacognitive analysis."
+- `prompt`: "Task: the skill invocation arguments. Select appropriate rules and perform metacognitive analysis."
 
 **Step 2: Utilize rule-advisor Output**
 

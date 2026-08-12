@@ -15,7 +15,7 @@ Coordinate the design phase from repository evidence to an approved Design Doc. 
 
 The Design Doc is always the complete implementation design for Medium/Large work. A qualifying ADR batch narrows technical choices before the Design Doc, which retains the complete flow and implementation boundary.
 
-Requirements: $ARGUMENTS
+Requirements: the skill invocation arguments
 
 ## Flow
 
