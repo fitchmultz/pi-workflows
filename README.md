@@ -131,10 +131,14 @@ reference/workflows/           # upstream recipe source (MIT)
 ```
 
 ```bash
-node scripts/build.mjs
-node scripts/build.mjs --check
-node --test scripts/*.test.mjs
+npm ci --ignore-scripts
+npm run build          # only when regenerating the vendored recipe assets
+npm run check:compat
 ```
+
+`check:compat` verifies generated assets without rewriting them, type-checks the project extension, and runs the existing Node tests plus native project discovery and a real child-CLI test. The current development baseline is official Pi 0.86.1, with Node 24 used for qualification. The shared compatibility runner installs the selected official or fork cohort in this checkout's `node_modules`; the test verifies SDK/types/manifest-bin identity rather than finding `pi` on PATH. The child executes JSON print mode against a credential-free loopback provider, proving final-result delivery without paid calls.
+
+This remains a **project kit**, not a globally installable Pi package. Native tests copy `.pi` into an isolated trusted project, discover the skills and recipe prompts, dispatch a real command, and check the `workflow` tool. Agent profiles and missing recipe tools still belong to the separately documented pi-subagents/extension composition; clean Pi discovery is not proof those integrations or the interactive approval UI were exercised. No Node/platform floor is raised by the development baseline.
 
 Upstream recipe content: MIT, © Shinsuke Kagawa (`reference/workflows/LICENSE`).
 This repo's port and extension: MIT.
