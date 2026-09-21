@@ -19,7 +19,7 @@ export const STEER =
 
 export const keywordState = { dismissed: false };
 
-export type Paint = { fg: (key: string, text: string) => string };
+export type Paint = { fg: (key: "accent" | "dim", text: string) => string };
 
 export function parseSize(raw: string | undefined): Size | undefined {
 	const value = raw?.trim().toLowerCase();

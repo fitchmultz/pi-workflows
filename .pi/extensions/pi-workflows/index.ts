@@ -8,6 +8,7 @@ import {
 	parseMeta,
 	runWorkflow,
 	type RunResult,
+	type WorkflowMeta,
 } from "./runtime.ts";
 import { spawnWorker } from "./spawn.ts";
 import {
@@ -378,11 +379,11 @@ export default function (pi: ExtensionAPI) {
 		async execute(_id, params, signal, _onUpdate, ctx) {
 			try {
 				const decision = await askToRun(ctx, params.script);
-				if (!decision.ok) return { content: [{ type: "text", text: "User declined the workflow." }] };
+				if (!decision.ok) return { content: [{ type: "text", text: "User declined the workflow." }], details: undefined };
 				const run = startRun(pi, ctx, decision.script, params.args);
-				if (signal.aborted) run.controller.abort();
-				else signal.addEventListener("abort", () => run.controller.abort(), { once: true });
-				return { content: [{ type: "text", text: `Started ${run.name} (${run.id}). Use /workflows to watch.` }] };
+				if (signal?.aborted) run.controller.abort();
+				else signal?.addEventListener("abort", () => run.controller.abort(), { once: true });
+				return { content: [{ type: "text", text: `Started ${run.name} (${run.id}). Use /workflows to watch.` }], details: undefined };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				return { content: [{ type: "text", text: message }], details: { error: message } };
