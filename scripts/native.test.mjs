@@ -54,7 +54,9 @@ test("native project discovery, command dispatch, optional tool signal and selec
     await session.prompt("/workflow-size small");
     assert.equal(readFileSync(join(cwd, ".pi/workflow-size"), "utf8"), "small\n");
     // Native context with a legal absent AbortSignal used to report an error AFTER starting a run.
-    const workflow = loader.getExtensions().extensions[0].tools.get("workflow").definition;
+    const workflow = [...loader.getExtensions().extensions[0].tools.values()]
+      .find(({ definition }) => definition.name === "workflow" && definition.namespace === undefined)?.definition;
+    assert.ok(workflow, "Expected the unnamespaced workflow tool");
     const result = await workflow.execute("no-signal", { script: "export const meta = { name: 'compat', description: 'local' }\nreturn 42" }, undefined, undefined, session.extensionRunner.createContext());
     await new Promise((resolve) => setImmediate(resolve));
     assert.match(result.content[0].text, /^Started compat/);
