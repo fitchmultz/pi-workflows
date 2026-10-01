@@ -1,5 +1,5 @@
 import { CustomEditor, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Container, matchesKey, SelectList, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, getKeybindings, matchesKey, SelectList, Spacer, Text } from "@earendil-works/pi-tui";
 import { allow, findKeyword, isAllowed, keywordState, SIZE_HINT, type Size } from "./polish.ts";
 
 export class KeywordEditor extends CustomEditor {
@@ -58,7 +58,14 @@ export async function approvalCard(
 				render: width => card.render(width),
 				handleMouse: event => card.handleMouse(event),
 				handleInput(data) {
-					// Retain the old left/right/Tab path alongside configured native keys.
+					const kb = getKeybindings();
+					// Native actions win; legacy navigation is only a fallback.
+					if (kb.matches(data, "tui.select.up") || kb.matches(data, "tui.select.down")
+						|| kb.matches(data, "tui.select.confirm") || kb.matches(data, "tui.select.cancel")) {
+						list.handleInput(data);
+						tui.requestRender();
+						return;
+					}
 					if (matchesKey(data, "left") || matchesKey(data, "shift+tab")) selected = (selected + 3) % 4;
 					else if (matchesKey(data, "right") || matchesKey(data, "tab")) selected = (selected + 1) % 4;
 					else { list.handleInput(data); tui.requestRender(); return; }

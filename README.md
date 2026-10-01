@@ -52,7 +52,7 @@ run a workflow to migrate src/components/ from styled-components to Tailwind
 ultracode: keep running tsc until it passes or two rounds make no progress
 ```
 
-The model writes a script and calls the `workflow` tool. In TUI you get a card built from native SelectList/Text controls (configured navigation/confirm/cancel keys plus left/right/Tab; fullscreen also supports mouse):
+The model writes a script and calls the `workflow` tool. In TUI you get a card built from native SelectList/Text controls (configured navigation/confirm/cancel keys take precedence; left/right/Tab remain fallback shortcuts; fullscreen also supports mouse):
 
 - **Once** — run this time
 - **Always** — run and skip the card for this name in this repo
