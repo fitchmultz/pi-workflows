@@ -1,6 +1,6 @@
 # pi-workflows
 
-Two ways to run work in [Pi](https://github.com/earendil-works/pi), requiring **Pi 1.0.0 or later**. Both stay in this repo. Nothing is installed globally. Delivery is Git/GitHub-only; the similarly named npm package is unrelated and must not be published by this repository.
+Version **0.2.0** provides two ways to run work in [Pi](https://github.com/earendil-works/pi), requiring **Pi 1.0.0 or later**. Both stay in this repo. Nothing is installed globally. Delivery is Git/GitHub-only; the similarly named npm package is unrelated and must not be published by this repository.
 
 ```bash
 cd pi-workflows
@@ -144,7 +144,7 @@ npm run check:compat
 
 This remains a **project kit**, not a globally installable Pi package. Native tests copy `.pi` into an isolated trusted project, discover the skills and recipe prompts, dispatch a real command, and check the `workflow` tool. Agent profiles and missing recipe tools still belong to the separately documented pi-subagents/extension composition; clean Pi discovery is not proof those separately installed integrations were exercised. UI qualification covers native-control approval/edit/cancel and keyword-editor flow in default fullscreen and regular mode, narrow/wide/CJK, focus, resize and disposal. No Node/platform floor is raised by the development baseline.
 
-See [Pi 1.0 contracts and qualification](docs/pi-1.0.md) for the exact source, lifecycle boundaries, known script-runtime ceiling and repeatable checks.
+See [Pi 1.0 contracts and qualification](docs/pi-1.0.md) for the exact source, lifecycle boundaries, known script-runtime ceiling and repeatable checks, and the [changelog](CHANGELOG.md) for release changes.
 
 Upstream recipe content: MIT, © Shinsuke Kagawa (`reference/workflows/LICENSE`).
 This repo's port and extension: MIT.
