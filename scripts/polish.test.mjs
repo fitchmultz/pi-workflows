@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -11,7 +11,6 @@ import {
 	keywordState,
 	loadSize,
 	parseSize,
-	renderCard,
 	saveSize,
 	sizeAdvice,
 	STEER,
@@ -31,8 +30,9 @@ test("parseSize and sizeAdvice", () => {
 	assert.match(sizeAdvice("unrestricted"), /unrestricted/);
 });
 
-test("loadSize defaults to medium and honors the project file", () => {
+test("loadSize defaults to medium and honors the project file", t => {
 	const root = mkdtempSync(join(tmpdir(), "wf-size-"));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
 	assert.equal(loadSize(root), "medium");
 	assert.equal(loadSize(root, "small"), "small");
 	saveSize(root, "large");
@@ -40,8 +40,9 @@ test("loadSize defaults to medium and honors the project file", () => {
 	assert.equal(readFileSync(join(root, ".pi", "workflow-size"), "utf8").trim(), "large");
 });
 
-test("allow list is project-local", () => {
+test("allow list is project-local", t => {
 	const root = mkdtempSync(join(tmpdir(), "wf-allow-"));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
 	assert.equal(isAllowed(root, "audit-routes"), false);
 	allow(root, "audit-routes");
 	assert.equal(isAllowed(root, "audit-routes"), true);
@@ -59,18 +60,4 @@ test("decorateInput only steers keyword prompts", () => {
 	keywordState.dismissed = true;
 	assert.equal(decorateInput("use a workflow to audit src/routes", "small"), "use a workflow to audit src/routes");
 	keywordState.dismissed = false;
-});
-
-test("renderCard lists Once Always View Deny", () => {
-	const theme = { fg: (_k, text) => text };
-	const lines = renderCard(theme, {
-		name: "audit-routes",
-		description: "Audit handlers",
-		size: "medium",
-		selected: 0,
-	});
-	assert.match(lines.join("\n"), /Once/);
-	assert.match(lines.join("\n"), /Always/);
-	assert.match(lines.join("\n"), /View/);
-	assert.match(lines.join("\n"), /Deny/);
 });

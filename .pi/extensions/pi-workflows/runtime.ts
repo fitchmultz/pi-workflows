@@ -108,9 +108,6 @@ export function coerceResult(text: string, schema?: JsonSchema): unknown {
 }
 
 export async function runWorkflow(source: string, hooks: RunHooks): Promise<RunResult> {
-	assertScriptSafe(source);
-	const meta = parseMeta(source);
-	const body = scriptBody(source);
 	const started: number[] = [];
 	const finished = new Map<number, unknown>();
 	let nextId = 0;
@@ -118,7 +115,8 @@ export async function runWorkflow(source: string, hooks: RunHooks): Promise<RunR
 	const replayThrough = hooks.replayThrough ?? -1;
 	const cache = hooks.cache ?? [];
 
-	const agent: AgentFn = async (prompt, opts) => {
+	const pending = new Set<Promise<unknown>>();
+	const callAgent: AgentFn = async (prompt, opts) => {
 		if (hooks.signal?.aborted) return null;
 		const id = nextId++;
 		if (id >= MAX_AGENTS) throw new Error(`workflow exceeded ${MAX_AGENTS} agents`);
@@ -150,10 +148,26 @@ export async function runWorkflow(source: string, hooks: RunHooks): Promise<RunR
 		}
 	};
 
+	const agent: AgentFn = (prompt, opts) => {
+		const task = callAgent(prompt, opts);
+		pending.add(task);
+		void task.then(() => pending.delete(task), () => pending.delete(task));
+		return task;
+	};
+	const drain = async () => {
+		while (pending.size) await Promise.allSettled([...pending]);
+	};
+
 	const pipeline = async <T>(items: T[], fn: (item: T, index: number) => Promise<unknown>) =>
 		mapPool(Array.isArray(items) ? items : [], fn);
 
 	try {
+		assertScriptSafe(source);
+		const meta = parseMeta(source);
+		const body = scriptBody(source);
+		hooks.signal?.throwIfAborted();
+		// ponytail: trusted local scripts, not a security sandbox or CPU deadline.
+		// Use an isolated bounded runtime if untrusted scripts become supported.
 		const context = vm.createContext({
 			agent,
 			pipeline,
@@ -186,9 +200,12 @@ export async function runWorkflow(source: string, hooks: RunHooks): Promise<RunR
 			URLSearchParams,
 		});
 		const value = await vm.runInContext(`(async () => {\n${body}\n})()`, context);
+		await drain();
+		hooks.signal?.throwIfAborted();
 		hooks.onEvent?.({ type: "done", ok: true });
 		return { ok: true, value, started, finished };
 	} catch (error) {
+		await drain();
 		const message = error instanceof Error ? error.message : String(error);
 		hooks.onEvent?.({ type: "done", ok: false });
 		return { ok: false, error: message, started, finished };

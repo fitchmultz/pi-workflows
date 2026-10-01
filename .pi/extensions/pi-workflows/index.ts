@@ -14,6 +14,7 @@ import { spawnWorker } from "./spawn.ts";
 import {
 	decorateInput,
 	loadSize,
+	keywordState,
 	parseSize,
 	saveSize,
 	SIZE_HINT,
@@ -72,7 +73,6 @@ type Run = {
 	task?: Promise<void>;
 };
 
-const runs = new Map<string, Run>();
 let seq = 0;
 
 function listDirNames(dir: string, kind: "dir" | "file"): string[] {
@@ -136,6 +136,7 @@ function startRun(
 	ctx: ExtensionContext,
 	script: string,
 	args: unknown,
+	runs: Map<string, Run>,
 	resume?: Run,
 ): Run {
 	const meta = parseMeta(script);
@@ -181,12 +182,12 @@ function startRun(
 		run.cache = snap.cache;
 		run.replayThrough = snap.replayThrough;
 		run.started = result.started;
-		if (run.controller.signal.aborted && !result.ok) {
+		if (run.controller.signal.aborted) {
 			run.status = "paused";
 		} else if (result.ok) {
 			run.status = "done";
 			run.value = result.value;
-			pi.sendMessage({
+			await pi.sendMessage({
 				customType: "workflow-report",
 				content: [{ type: "text", text: formatReport(run) }],
 				display: true,
@@ -208,6 +209,7 @@ function startRun(
 
 function formatReport(run: Run): string {
 	if (run.status === "failed") return `Workflow ${run.name} failed: ${run.error ?? "unknown error"}`;
+	if (run.status !== "done") return `Workflow ${run.name} ${run.status}.`;
 	const body = typeof run.value === "string" ? run.value : JSON.stringify(run.value, null, 2);
 	return `Workflow ${run.name} finished.\n\n${body ?? ""}`;
 }
@@ -233,6 +235,7 @@ function saveScript(cwd: string, script: string): string {
 }
 
 export default function (pi: ExtensionAPI) {
+	const runs = new Map<string, Run>();
 	pi.registerFlag("workflow-size", {
 		description: "Workflow size guideline: small, medium, large, unrestricted",
 		type: "string",
@@ -300,7 +303,7 @@ export default function (pi: ExtensionAPI) {
 			const action = await ctx.ui.select(run.name, ["View", "Pause", "Resume", "Stop", "Save"]);
 			if (action === "View") ctx.ui.notify(formatReport(run), "info");
 			if (action === "Pause" || action === "Stop") run.controller.abort();
-			if (action === "Resume" && run.status === "paused") startRun(pi, ctx, run.script, run.args, run);
+			if (action === "Resume" && run.status === "paused") startRun(pi, ctx, run.script, run.args, runs, run);
 			if (action === "Save") ctx.ui.notify(`Saved ${saveScript(ctx.cwd, run.script)}`, "info");
 		},
 	});
@@ -334,7 +337,7 @@ export default function (pi: ExtensionAPI) {
 	const launch = (script: string) => async (args: string, ctx: ExtensionCommandContext) => {
 		const decision = await askToRun(ctx, script);
 		if (!decision.ok) return;
-		const run = startRun(pi, ctx, decision.script, args);
+		const run = startRun(pi, ctx, decision.script, args, runs);
 		ctx.ui.notify(`Started ${run.name} (${run.id})`, "info");
 	};
 
@@ -344,6 +347,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
+		keywordState.dismissed = false;
 		if (ctx.mode === "tui") {
 			ctx.ui.setEditorComponent((tui, theme, kb) => new KeywordEditor(tui, theme, kb));
 		}
@@ -362,9 +366,10 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
-		for (const run of runs.values()) {
-			if (run.status === "running") run.controller.abort();
-		}
+		for (const run of runs.values()) run.controller.abort();
+		// Shutdown is awaited before contexts become stale; finish owned child cleanup
+		// while paint/report callbacks still belong to this session.
+		await Promise.allSettled([...runs.values()].map(run => run.task));
 	});
 
 	pi.registerTool({
@@ -380,13 +385,17 @@ export default function (pi: ExtensionAPI) {
 			try {
 				const decision = await askToRun(ctx, params.script);
 				if (!decision.ok) return { content: [{ type: "text", text: "User declined the workflow." }], details: undefined };
-				const run = startRun(pi, ctx, decision.script, params.args);
+				const run = startRun(pi, ctx, decision.script, params.args, runs);
 				if (signal?.aborted) run.controller.abort();
-				else signal?.addEventListener("abort", () => run.controller.abort(), { once: true });
+				else if (signal) {
+					const abort = () => run.controller.abort();
+					signal.addEventListener("abort", abort, { once: true });
+					void run.task?.then(() => signal.removeEventListener("abort", abort), () => signal.removeEventListener("abort", abort));
+				}
 				return { content: [{ type: "text", text: `Started ${run.name} (${run.id}). Use /workflows to watch.` }], details: undefined };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				return { content: [{ type: "text", text: message }], details: { error: message } };
+				return { content: [{ type: "text", text: message }], isError: true, details: { error: message } };
 			}
 		},
 	});
