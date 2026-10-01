@@ -1,6 +1,6 @@
 # pi-workflows
 
-Two ways to run work in [pi](https://github.com/earendil-works/pi-mono). Both stay in this repo. Nothing is installed globally.
+Two ways to run work in [Pi](https://github.com/earendil-works/pi), requiring **Pi 1.0.0 or later**. Both stay in this repo. Nothing is installed globally. Delivery is Git/GitHub-only; the similarly named npm package is unrelated and must not be published by this repository.
 
 ```bash
 cd pi-workflows
@@ -52,7 +52,7 @@ run a workflow to migrate src/components/ from styled-components to Tailwind
 ultracode: keep running tsc until it passes or two rounds make no progress
 ```
 
-The model writes a script and calls the `workflow` tool. You get a card:
+The model writes a script and calls the `workflow` tool. In TUI you get a card built from native SelectList/Text controls (configured navigation/confirm/cancel keys plus left/right/Tab; fullscreen also supports mouse):
 
 - **Once** — run this time
 - **Always** — run and skip the card for this name in this repo
@@ -115,7 +115,11 @@ const audits = await pipeline(found.files, file =>
 return audits.filter(Boolean)
 ```
 
-`agent()` returns `null` if that worker is stopped or fails. The script cannot import, require, fetch, or touch `process`.
+`agent()` returns `null` if that worker is stopped, fails, reaches its output limit, or never produces a completed final assistant. JSONL parsing retains the current record and last assistant rather than whole worker stdout, handles fragmented UTF-8/EOF, and never substitutes logs for an answer. A queued/handled input receipt is not a finished worker: child print mode must actually finish and exit successfully.
+
+Started workers settle before a workflow reports completion. Pause/Stop/shutdown abort owned children; shutdown waits before session-bound UI/report callbacks become stale. Runs belong to the extension instance, not a module-global pool shared across replacement sessions. Resume replays completed results and retries unfinished workers.
+
+Scripts cannot directly import, require, fetch, or touch `process`. This is a **trusted local-script runtime**, not a security sandbox or CPU deadline; approve only scripts you trust and await orchestration. Non-UI mode intentionally runs without the selector; RPC asks for confirmation; project-local Always skips future approval for that name. Native CLI tools retain their existing authority.
 
 ## Layout
 
@@ -136,9 +140,11 @@ npm run build          # only when regenerating the vendored recipe assets
 npm run check:compat
 ```
 
-`check:compat` verifies generated assets without rewriting them, type-checks the project extension, and runs the existing Node tests plus native project discovery and a real child-CLI test. The current development baseline is official Pi 0.86.1, with Node 24 used for qualification. The shared compatibility runner installs the selected official or fork cohort in this checkout's `node_modules`; the test verifies SDK/types/manifest-bin identity rather than finding `pi` on PATH. The child executes JSON print mode against a credential-free loopback provider, proving final-result delivery without paid calls.
+`check:compat` verifies generated assets without rewriting them, type-checks the project extension, and runs the existing Node tests plus native project discovery and a real child-CLI test. The supported/development baseline is official Pi 1.0.0, with its exact eight-package 1.0 cohort, TypeBox 1.3.27 and physical Node 24.21.0 used for qualification. The shared compatibility runner installs the selected official or fork cohort in this checkout's `node_modules`; the test verifies SDK/types/manifest-bin identity rather than finding `pi` on PATH. The child executes JSON print mode against a credential-free loopback provider, proving completed/length-limited result and awaited shutdown behavior without paid calls. Tests select the exact PI_PACKAGE_DIR/SDK/manifest-bin identity in an isolated environment, not an inherited live fork override.
 
-This remains a **project kit**, not a globally installable Pi package. Native tests copy `.pi` into an isolated trusted project, discover the skills and recipe prompts, dispatch a real command, and check the `workflow` tool. Agent profiles and missing recipe tools still belong to the separately documented pi-subagents/extension composition; clean Pi discovery is not proof those integrations or the interactive approval UI were exercised. No Node/platform floor is raised by the development baseline.
+This remains a **project kit**, not a globally installable Pi package. Native tests copy `.pi` into an isolated trusted project, discover the skills and recipe prompts, dispatch a real command, and check the `workflow` tool. Agent profiles and missing recipe tools still belong to the separately documented pi-subagents/extension composition; clean Pi discovery is not proof those separately installed integrations were exercised. UI qualification covers native-control approval/edit/cancel and keyword-editor flow in default fullscreen and regular mode, narrow/wide/CJK, focus, resize and disposal. No Node/platform floor is raised by the development baseline.
+
+See [Pi 1.0 contracts and qualification](docs/pi-1.0.md) for the exact source, lifecycle boundaries, known script-runtime ceiling and repeatable checks.
 
 Upstream recipe content: MIT, © Shinsuke Kagawa (`reference/workflows/LICENSE`).
 This repo's port and extension: MIT.

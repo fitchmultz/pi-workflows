@@ -98,6 +98,23 @@ test("coerceResult parses JSON or keeps text", () => {
 	assert.throws(() => coerceResult("hello", { type: "object" }));
 });
 
+test("workflow completion waits for started workers even when the script omits await", async () => {
+	let release;
+	let started;
+	const began = new Promise(resolve => { started = resolve; });
+	const worker = new Promise(resolve => { release = resolve; });
+	let returned = false;
+	const result = runWorkflow(`export const meta = { name: 'x', description: 'd' }\nagent('one'); return 'result'`, {
+		agent() { started(); return worker; },
+	});
+	void result.then(() => { returned = true; });
+	await began;
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(returned, false);
+	release('finished');
+	assert.equal((await result).finished.get(0), 'finished');
+});
+
 test("aborted agent is unfinished so resume reruns it", async () => {
 	const controller = new AbortController();
 	const result = await runWorkflow(
@@ -110,6 +127,7 @@ test("aborted agent is unfinished so resume reruns it", async () => {
 			},
 		},
 	);
+	assert.equal(result.ok, false, "Cancellation must not report a finished workflow");
 	assert.equal(result.finished.size, 0);
 	assert.deepEqual(result.started, [0]);
 });

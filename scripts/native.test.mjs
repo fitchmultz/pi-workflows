@@ -20,16 +20,17 @@ if (process.env.PI_HOST_INDEX) assert.equal(realpathSync(process.env.PI_HOST_IND
 // One isolated project resource tree, not a fictitious `pi install` package.
 test("native project discovery, command dispatch, optional tool signal and selected child CLI", { timeout: 30_000 }, async (t) => {
   t.diagnostic(JSON.stringify({ host: process.env.PI_COMPAT_HOST ?? "local", version: host.version, packageDir, cli }));
-  const temp = mkdtempSync(join(tmpdir(), "pi-workflows-native-"));
+  const temp = realpathSync(mkdtempSync(join(tmpdir(), "pi-workflows-native-")));
   const cwd = join(temp, "project");
   const agentDir = join(temp, "agent");
-  const savedEnv = Object.fromEntries(["HOME", "PI_CODING_AGENT_DIR", "PI_OFFLINE", "PI_TELEMETRY"].map((key) => [key, process.env[key]]));
+  const savedEnv = Object.fromEntries(["HOME", "PI_CODING_AGENT_DIR", "PI_PACKAGE_DIR", "PI_OFFLINE", "PI_TELEMETRY"].map((key) => [key, process.env[key]]));
   const savedArgv = process.argv[1];
   mkdirSync(cwd);
   mkdirSync(agentDir);
   cpSync(join(root, ".pi"), join(cwd, ".pi"), { recursive: true });
   process.env.HOME = temp;
   process.env.PI_CODING_AGENT_DIR = agentDir;
+  process.env.PI_PACKAGE_DIR = packageDir;
   process.env.PI_OFFLINE = "1";
   process.env.PI_TELEMETRY = "0";
   let session;
@@ -47,9 +48,10 @@ test("native project discovery, command dispatch, optional tool signal and selec
     assert.deepEqual(loader.getPrompts().diagnostics, []);
     // The native host discovers skills/prompts, not pi-subagents' specialist profiles.
     assert.equal(readdirSync(join(cwd, ".pi/agents")).length, 25);
-    const modelRuntime = await ModelRuntime.create({ authPath: join(agentDir, "auth.json"), modelsPath: null });
+    const modelRuntime = await ModelRuntime.create({ authPath: join(agentDir, "auth.json"), modelsPath: null, allowModelNetwork: false });
     ({ session } = await createAgentSession({ cwd, agentDir, modelRuntime, settingsManager, resourceLoader: loader, sessionManager: SessionManager.inMemory(cwd) }));
-    await session.bindExtensions({ onError(error) { throw new Error(error.error); } });
+    const extensionErrors = [];
+    await session.bindExtensions({ mode: "print", onError(error) { extensionErrors.push(error); } });
     assert.ok(session.getActiveToolNames().includes("workflow"));
     await session.prompt("/workflow-size small");
     assert.equal(readFileSync(join(cwd, ".pi/workflow-size"), "utf8"), "small\n");
@@ -63,21 +65,24 @@ test("native project discovery, command dispatch, optional tool signal and selec
     assert.ok(session.messages.some((message) => message.customType === "workflow-report" && JSON.stringify(message.content).includes("42")));
 
     const requests = [];
+    let finishReason = "stop";
+    let stalled;
     server = createServer(async (req, res) => {
       let body = "";
       for await (const chunk of req) body += chunk;
       requests.push(JSON.parse(body));
+      if (stalled) { stalled(); return; }
       res.writeHead(200, { "content-type": "text/event-stream" });
       const base = { id: "compat", object: "chat.completion.chunk", created: 1, model: "worker" };
       res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: '{"answer":42}' }, finish_reason: null }] })}\n\n`);
-      res.end(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`);
+      res.end(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: finishReason }] })}\n\ndata: [DONE]\n\n`);
     });
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
     writeFileSync(join(agentDir, "models.json"), JSON.stringify({ providers: { "compat-local": {
       api: "openai-completions", baseUrl: `http://127.0.0.1:${server.address().port}/v1`, apiKey: "fixture-only",
       models: [{ id: "worker", name: "worker", reasoning: false, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 128000, maxTokens: 1000 }],
     } } }));
-    writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "compat-local", defaultModel: "worker", compaction: { enabled: false } }));
+    writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "compat-local", defaultModel: "worker", compaction: { enabled: false }, retry: { enabled: false }, providerRetry: { maxRetries: 0 } }));
     // Supply the same argv[1] the real bundled Pi parent exposes. The child itself is never mocked.
     process.argv[1] = cli;
     const controller = new AbortController();
@@ -88,6 +93,24 @@ test("native project discovery, command dispatch, optional tool signal and selec
     assert.equal(requests.length, 1);
     assert.ok(JSON.stringify(requests[0].messages).includes("Return the local fixture answer"));
     assert.deepEqual(requests[0].tools.map(({ function: tool }) => tool.name).sort(), ["bash", "edit", "find", "grep", "ls", "read", "write"]);
+    finishReason = "length";
+    assert.equal(await spawnWorker("Return the partial fixture", { cwd }), null, "Length-limited JSON is not a completed answer");
+    assert.equal((await workflow.execute("invalid", { script: "not a workflow" }, undefined, undefined, session.extensionRunner.createContext())).isError, true);
+    // Exercise shutdown with a real still-running child; no handler may retain a
+    // session-bound UI/report callback after the awaited shutdown boundary.
+    const requested = new Promise(resolve => { stalled = resolve; });
+    await workflow.execute("shutdown", { script: "export const meta = { name: 'pending', description: 'local' }\nreturn await agent('wait')" }, undefined, undefined, session.extensionRunner.createContext());
+    await requested;
+    await session.extensionRunner.emit({ type: "session_shutdown", reason: "switch" });
+    assert(!session.messages.some(message => message.customType === "workflow-report" && message.details?.name === "pending"));
+    const notices = [];
+    const workflows = loader.getExtensions().extensions[0].commands.get("workflows");
+    await workflows.handler("", { ...session.extensionRunner.createContext(), hasUI: true, mode: "rpc", ui: {
+      select: async (title, options) => title === "Workflow runs" ? options.find(label => label.includes("pending")) : "View",
+      notify: text => notices.push(text),
+    } });
+    assert.deepEqual(notices, ["Workflow pending paused."], "Viewing paused work must not claim it finished");
+    assert.deepEqual(extensionErrors, []);
   } finally {
     await session?.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
     session?.dispose();

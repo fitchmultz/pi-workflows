@@ -5,40 +5,14 @@ const TOOLS = "read,write,edit,bash,grep,find,ls";
 
 function piInvocation(): { cmd: string; prefix: string[] } {
 	const entry = process.argv[1] ?? "";
-	if (entry.endsWith("cli.js") || entry.endsWith("cli.ts") || entry.includes("coding-agent")) {
+	if (entry.endsWith("cli.js") || entry.endsWith("cli.ts")) {
 		return { cmd: process.execPath, prefix: [entry] };
 	}
 	return { cmd: "pi", prefix: [] };
 }
 
-function lastAssistantText(stdout: string): string {
-	let text = "";
-	for (const line of stdout.split(/\r?\n/)) {
-		if (!line.startsWith("{")) continue;
-		try {
-			const event = JSON.parse(line) as { type?: string; message?: { role?: string; content?: unknown } };
-			if (event.type !== "message_end" || event.message?.role !== "assistant") continue;
-			text = contentText(event.message.content);
-		} catch {
-			// ignore a torn JSON line
-		}
-	}
-	return text;
-}
-
-function contentText(content: unknown): string {
-	if (typeof content === "string") return content;
-	if (!Array.isArray(content)) return "";
-	return content
-		.map((part) => {
-			if (typeof part === "string") return part;
-			if (part && typeof part === "object" && "text" in part && typeof part.text === "string") return part.text;
-			return "";
-		})
-		.join("");
-}
-
 export function spawnWorker(prompt: string, opts: AgentOpts & { cwd: string; signal?: AbortSignal }): Promise<unknown> {
+	if (opts.signal?.aborted) return Promise.resolve(null);
 	const schemaNote = opts.schema
 		? `\nReturn ONLY JSON matching this schema:\n${JSON.stringify(opts.schema)}`
 		: "";
@@ -59,22 +33,42 @@ export function spawnWorker(prompt: string, opts: AgentOpts & { cwd: string; sig
 	];
 	return new Promise((resolve) => {
 		const child = spawn(cmd, args, { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] });
-		let stdout = "";
+		let pending = "";
+		let final: { stopReason?: string; content?: Array<{ type?: string; text?: string }> } | undefined;
+		const record = (line: string) => {
+			try {
+				const event = JSON.parse(line);
+				if (event.type === "message_start" && event.message?.role === "assistant") final = undefined;
+				if (event.type === "message_end" && event.message?.role === "assistant") final = event.message;
+			} catch {
+				// Non-JSON diagnostics are not assistant output.
+			}
+		};
+		// Native UTF-8 decoding handles split code points; only the current JSONL record
+		// and final assistant are retained, not every tool result from a long worker.
 		child.stdout.setEncoding("utf8");
-		child.stdout.on("data", (chunk) => {
-			stdout += chunk;
+		child.stdout.on("data", (chunk: string) => {
+			pending += chunk;
+			let end: number;
+			while ((end = pending.indexOf("\n")) >= 0) {
+				record(pending.slice(0, end));
+				pending = pending.slice(end + 1);
+			}
 		});
+		child.stderr.resume();
 		const onAbort = () => child.kill("SIGTERM");
 		opts.signal?.addEventListener("abort", onAbort, { once: true });
 		child.on("error", () => resolve(null));
 		child.on("close", (code) => {
 			opts.signal?.removeEventListener("abort", onAbort);
-			if (opts.signal?.aborted || code !== 0) {
+			if (pending) record(pending);
+			if (opts.signal?.aborted || code !== 0 || final?.stopReason !== "stop") {
 				resolve(null);
 				return;
 			}
 			try {
-				resolve(coerceResult(lastAssistantText(stdout), opts.schema));
+				const text = final.content?.filter(part => part.type === "text").map(part => part.text ?? "").join("") ?? "";
+				resolve(coerceResult(text, opts.schema));
 			} catch {
 				resolve(null);
 			}
