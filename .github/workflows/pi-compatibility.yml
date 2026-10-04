@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      official-version:
+        type: string
+        default: ''
+      fork-ref:
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -15,6 +23,8 @@ concurrency:
 
 jobs:
   compatibility:
-    uses: fitchmultz/.github/.github/workflows/pi-compatibility.yml@f2a480f00d45cdbd8595090b79aee107c4d88098 # main
+    uses: fitchmultz/.github/.github/workflows/pi-compatibility.yml@6ec8741e1d5c7097e9b1f108bb698f5c5cd5d7f5 # main
     with:
-      automation-ref: f2a480f00d45cdbd8595090b79aee107c4d88098 # main
+      automation-ref: 6ec8741e1d5c7097e9b1f108bb698f5c5cd5d7f5 # main
+      official-version: ${{ inputs.official-version }}
+      fork-ref: ${{ inputs.fork-ref }}

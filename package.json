@@ -1,7 +1,15 @@
 {
-  "name": "pi-workflows",
-  "version": "0.2.0",
-  "private": true,
+  "name": "@fitchmultz/pi-workflows",
+  "version": "0.2.1",
+  "publishConfig": { "access": "public" },
+  "keywords": ["pi-package", "workflows", "recipes"],
+  "files": ["resources", "README.md", "CHANGELOG.md", "LICENSE", "reference/workflows/LICENSE"],
+  "pi": {
+    "extensions": ["./resources/extensions/pi-workflows/index.ts"],
+    "skills": ["./resources/skills"],
+    "prompts": ["./resources/prompts"]
+  },
+  "subagents": { "agents": ["resources/agents"] },
   "type": "module",
   "license": "MIT",
   "description": "Pi-native recipe workflows and scripted agent()/pipeline() runtime",
