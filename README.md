@@ -1,11 +1,15 @@
 # pi-workflows
 
-Version **0.2.0** provides two ways to run work in [Pi](https://github.com/earendil-works/pi), requiring **Pi 1.0.0 or later**. Both stay in this repo. Nothing is installed globally. Delivery is Git/GitHub-only; the similarly named npm package is unrelated and must not be published by this repository.
+Install the complete recipes, skills, specialist profiles and scripted runtime in [Pi](https://github.com/earendil-works/pi):
 
 ```bash
-cd pi-workflows
-pi
+pi install npm:@fitchmultz/pi-subagents   # 0.44.4+; required for recipe specialists
+pi install npm:@fitchmultz/pi-workflows
 ```
+
+**The unscoped npm package `pi-workflows` is not this project.** This maintained project uses `@fitchmultz/pi-workflows` **0.2.1**, requiring Pi **1.0.0+** and the Subagents prerequisite above. Recipes also use `todo_list`, `ask_question` and `agent_browser_web_search`; install their providers separately. `/workflows` reports missing tools. Scripted workers keep their existing generic native-tool policy.
+
+Git fallback: `pi install git:github.com/fitchmultz/pi-workflows`. Existing tags/branches and project-kit use remain supported. For a checkout, run `npm ci --ignore-scripts`, then `pi` inside the repository to use its existing `.pi` assets. To migrate an installed Git package, remove only its declaration with `pi remove git:github.com/fitchmultz/pi-workflows`, then install the scoped package; do not remove project scripts or settings.
 
 ## Which one do I use?
 
@@ -131,6 +135,7 @@ Scripts cannot directly import, require, fetch, or touch `process`. This is a **
 .pi/workflows/                 # saved scripts (optional)
 .pi/workflow-size              # size guideline (optional)
 .pi/workflow-allow             # Always names (optional)
+resources/                    # generated public runtime/skills/prompts/profiles for npm/Git packages
 reference/workflows/           # upstream recipe source (MIT)
 ```
 
@@ -140,9 +145,11 @@ npm run build          # only when regenerating the vendored recipe assets
 npm run check:compat
 ```
 
-`check:compat` verifies generated assets without rewriting them, type-checks the project extension, and runs the existing Node tests plus native project discovery and a real child-CLI test. The supported/development baseline is official Pi 1.0.0, with its exact eight-package 1.0 cohort, TypeBox 1.3.27 and physical Node 24.21.0 used for qualification. The shared compatibility runner installs the selected official or fork cohort in this checkout's `node_modules`; the test verifies SDK/types/manifest-bin identity rather than finding `pi` on PATH. The child executes JSON print mode against a credential-free loopback provider, proving completed/length-limited result and awaited shutdown behavior without paid calls. Tests select the exact PI_PACKAGE_DIR/SDK/manifest-bin identity in an isolated environment, not an inherited live fork override.
+`check:compat` verifies generated assets without rewriting them, type-checks the project extension, and runs the existing Node tests, native project/packed-package discovery and a real child-CLI test. The packed consumer installs the documented scoped Subagents prerequisite; offline qualification can supply a reviewed tarball with `PI_WORKFLOWS_SUBAGENTS_TARBALL=/absolute/package.tgz`. `PI_WORKFLOWS_TARBALL=/absolute/workflows.tgz` reuses one exact artifact across host checks. The supported/development baseline is official Pi 1.0.0, with its exact eight-package 1.0 cohort, TypeBox 1.3.27 and physical Node 24.21.0 used for qualification. The shared compatibility runner installs the selected official or fork cohort in this checkout's `node_modules`; the test verifies SDK/types/manifest-bin identity rather than finding `pi` on PATH. The child executes JSON print mode against a credential-free loopback provider, proving completed/length-limited result and awaited shutdown behavior without paid calls. Tests select the exact PI_PACKAGE_DIR/SDK/manifest-bin identity in an isolated environment, not an inherited live fork override.
 
-This remains a **project kit**, not a globally installable Pi package. Native tests copy `.pi` into an isolated trusted project, discover the skills and recipe prompts, dispatch a real command, and check the `workflow` tool. Agent profiles and missing recipe tools still belong to the separately documented pi-subagents/extension composition; clean Pi discovery is not proof those separately installed integrations were exercised. UI qualification covers native-control approval/edit/cancel and keyword-editor flow in default fullscreen and regular mode, narrow/wide/CJK, focus, resize and disposal. No Node/platform floor is raised by the development baseline.
+The generator preserves the project `.pi` kit and also produces the public `resources/` package layout. Only source-owned runtime/skills/prompts/profiles ship; private `.pi` scripts, size/Always state and user data never enter the tarball. The explicit Pi manifest loads the public runtime, skills and recipe prompts. Subagents 0.44.4+ reads the package's separate `subagents.agents` manifest through configured installed-package discovery. Profiles are read-only fallbacks below user/trusted-project overrides. No copying into user directories or live activation is needed.
+
+Native project tests retain trusted `.pi` discovery and the actual child CLI contracts. `scripts/package.test.mjs` verifies a packed artifact in an unrelated clean consumer with actual Subagents profile-tool calls, native recipe/skill discovery, runtime commands and project-local state. Generic resource loading alone is not profile composition or recipe execution proof. UI qualification covers native-control approval/edit/cancel and keyword-editor flow in default fullscreen and regular mode, narrow/wide/CJK, focus, resize and disposal. No Node/platform floor is raised by the development baseline.
 
 See [Pi 1.0 contracts and qualification](docs/pi-1.0.md) for the exact source, lifecycle boundaries, known script-runtime ceiling and repeatable checks, and the [changelog](CHANGELOG.md) for release changes.
 

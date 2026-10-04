@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// build.mjs — regenerate .pi/skills, .pi/agents, and .pi/prompts from reference/.
+// build.mjs — regenerate project assets and public package resources from reference/.
 //
 // Usage: node scripts/build.mjs [--check]
 //   (no flag)  wipe and regenerate those trees
@@ -20,6 +20,8 @@ const SRC_AGENTS = join(SRC, "agents");
 const DST_SKILLS = join(ROOT, ".pi", "skills");
 const DST_AGENTS = join(ROOT, ".pi", "agents");
 const DST_PROMPTS = join(ROOT, ".pi", "prompts");
+const PACKAGE_RESOURCES = join(ROOT, "resources");
+const RESOURCE_DIRS = ["skills", "agents", "prompts", "extensions"];
 const CHECK = process.argv.includes("--check");
 
 // Plugin namespaces (workflows:, workflows-frontend:, workflows-fullstack:)
@@ -221,6 +223,12 @@ function generate() {
     if (!file.endsWith(".md")) continue;
     writeFileSync(join(DST_AGENTS, file), transformAgent(readFileSync(join(SRC_AGENTS, file), "utf8")));
   }
+  // Only these source-owned trees are distributable; never copy project .pi state.
+  rmSync(PACKAGE_RESOURCES, { recursive: true, force: true });
+  mkdirSync(PACKAGE_RESOURCES, { recursive: true });
+  for (const dir of RESOURCE_DIRS) {
+    cpSync(join(ROOT, ".pi", dir), join(PACKAGE_RESOURCES, dir), { recursive: true });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -236,6 +244,27 @@ function* walk(dir) {
 
 function check() {
   const problems = [];
+
+  for (const dir of RESOURCE_DIRS) {
+    const projectDir = join(ROOT, ".pi", dir);
+    const packageDir = join(PACKAGE_RESOURCES, dir);
+    if (!existsSync(packageDir)) {
+      problems.push(`missing public resource directory: ${dir}`);
+      continue;
+    }
+    const projectFiles = [...walk(projectDir)].map(file => file.slice(projectDir.length + 1)).sort();
+    const packageFiles = [...walk(packageDir)].map(file => file.slice(packageDir.length + 1)).sort();
+    if (JSON.stringify(projectFiles) !== JSON.stringify(packageFiles)) problems.push(`public ${dir} file inventory differs from project assets`);
+    for (const file of projectFiles) {
+      const target = join(packageDir, file);
+      if (!existsSync(target) || !readFileSync(join(projectDir, file)).equals(readFileSync(target))) {
+        problems.push(`public ${dir}/${file} differs from source-owned project asset`);
+      }
+    }
+  }
+  if (existsSync(PACKAGE_RESOURCES) && readdirSync(PACKAGE_RESOURCES).some(dir => !RESOURCE_DIRS.includes(dir))) {
+    problems.push("unexpected public resource tree");
+  }
 
   const srcSkillDirs = readdirSync(SRC_SKILLS).filter((d) => existsSync(join(SRC_SKILLS, d, "SKILL.md")));
   const dstSkillDirs = existsSync(DST_SKILLS)
@@ -322,6 +351,11 @@ function check() {
 export { generate, check, toPromptTemplate, transformAgent, skillInvocationArgs };
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    console.log("Usage: node scripts/build.mjs [--check]\n\nRegenerate project assets and public package resources from reference/workflows.\nExamples:\n  node scripts/build.mjs          # regenerate both layouts\n  node scripts/build.mjs --check  # verify without rewriting\nExit codes: 0 complete; 1 invalid arguments or inconsistent assets.");
+    process.exit(0);
+  }
+  if (process.argv.slice(2).some(arg => arg !== "--check")) throw new Error("Expected --check or --help");
   if (!CHECK) generate();
   const problems = check();
   const skillCount = existsSync(DST_SKILLS) ? readdirSync(DST_SKILLS).length : 0;
