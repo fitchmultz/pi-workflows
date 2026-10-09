@@ -3,7 +3,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { getKeybindings, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS, visibleWidth } from "@earendil-works/pi-tui";
+import xterm from "@xterm/headless";
+import * as nativeTui from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, getKeybindings, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS, TuiAltScreen, TuiMainScreen, visibleWidth } from "@earendil-works/pi-tui";
 import { approvalCard, KeywordEditor } from "../.pi/extensions/pi-workflows/ui.ts";
 import { isAllowed, keywordState } from "../.pi/extensions/pi-workflows/polish.ts";
 
@@ -88,4 +90,58 @@ test("keyword editor keeps native keys, focus, width and CJK while dismissing on
   editor.handleInput("x");
   assert.equal(keywordState.dismissed, false);
   assert.equal(editor.getText(), "x");
+});
+
+for (const Screen of [TuiMainScreen, TuiAltScreen]) test(`keyword editor preserves highlight and native cursor in ${Screen.name}`, async t => {
+  const display = new xterm.Terminal({ cols: 40, rows: 12, allowProposedApi: true });
+  const writes = [];
+  const write = data => { writes.push(data); display.write(data); };
+  // The same xterm backend as pi-tui's VirtualTerminal; only terminal I/O is substituted.
+  const terminal = {
+    columns: 40, rows: 12, kittyProtocolActive: true,
+    start() {}, stop() {}, async drainInput() {},
+    write,
+    moveBy: lines => { if (lines) write(`\x1b[${Math.abs(lines)}${lines > 0 ? "B" : "A"}`); },
+    hideCursor: () => write("\x1b[?25l"), showCursor: () => write("\x1b[?25h"),
+    clearLine: () => write("\x1b[K"), clearFromCursor: () => write("\x1b[J"),
+    clearScreen: () => write("\x1b[2J\x1b[H"),
+    setTitle() {}, setProgress() {}, setProgramStatus() {},
+  };
+  const tui = new Screen(terminal);
+  const identity = text => text;
+  const theme = { borderColor: identity, selectList: { selectedPrefix: identity, selectedText: identity, description: identity, scrollInfo: identity, noMatch: identity } };
+  const editor = new KeywordEditor(tui, theme, new KeybindingsManager(TUI_KEYBINDINGS));
+  const dismissed = keywordState.dismissed;
+  t.after(() => { tui.stop(); display.dispose(); keywordState.dismissed = dismissed; });
+  keywordState.dismissed = false;
+  editor.setText("use a workflow 日本語 x");
+  editor.handleInput("\x1b[D"); // The cursor is on x, after three two-column CJK characters.
+  tui.addChild(editor);
+  tui.setFocus(editor);
+  assert.equal(editor.focused, true, "Native focus must reach the actual CustomEditor");
+  assert.equal(editor.render(40).join("").split(CURSOR_MARKER).length - 1, 1);
+  tui.start();
+
+  for (const hardware of [false, true, false]) {
+    writes.length = 0;
+    tui.setShowHardwareCursor(hardware);
+    tui.renderNow(true);
+    await new Promise(resolve => display.write("", resolve));
+    const buffer = display.buffer.active;
+    const line = buffer.getLine(buffer.viewportY + 1);
+    assert.equal(line.translateToString(true).trimEnd(), "use a workflow 日本語 x");
+    for (let col = 0; col < 14; col++) assert.ok(line.getCell(col).isInverse(), "The workflow phrase must stay highlighted");
+    for (const col of [14, 21, 23]) assert.equal(Boolean(line.getCell(col).isInverse()), false, "Highlight must not bleed into adjacent cells");
+    // Older supported hosts draw both cursors; marker-aware hosts suppress only the focused fake cursor.
+    const fakeCursor = !hardware || typeof nativeTui.renderFakeCursor !== "function";
+    assert.equal(Boolean(line.getCell(22).isInverse()), fakeCursor);
+    assert.deepEqual({ x: buffer.cursorX, y: buffer.cursorY }, { x: 22, y: 1 }, "IME cursor must use terminal columns, not string offsets");
+    const output = writes.join("");
+    assert.ok(!output.includes("\x1b_pi:"), "Internal cursor markers must never reach the terminal");
+    assert.equal([...output.matchAll(/\x1b\[\?25([hl])/g)].at(-1)?.[1], hardware ? "h" : "l");
+  }
+
+  tui.setFocus(null);
+  assert.equal(editor.focused, false);
+  assert.ok(!editor.render(40).join("").includes(CURSOR_MARKER), "An unfocused editor must not own the hardware cursor");
 });

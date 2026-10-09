@@ -30,3 +30,11 @@ npm pack --dry-run --ignore-scripts
 ```
 
 Normal checks need no paid model. Native tests copy project assets into an isolated trusted project, verify discovery/command/tool behavior and use a local provider for actual CLI success/length/shutdown. Transport tests independently cover final assistant, fragmented UTF-8, EOF, missing/partial/error output, nonzero exit and pre/mid cancellation. UI tests cover approval/edit/denial/Always policy and real CustomEditor keys/width/CJK. Inspect the actual CLI fullscreen (default) and regular cards, editor, keyboard/mouse/focus, narrow/wide/CJK/resize/cancel and session replacement/disposal separately; fixture success is not a visual inspection or proof of external recipe tools.
+
+### Keyword-editor cursor acceptance
+
+`node --test scripts/ui.test.mjs` also runs the actual `KeywordEditor` through native `TuiMainScreen` and `TuiAltScreen`, using xterm's headless terminal backend (the same backend as Pi's virtual terminal). It checks focused/unfocused cursor markers, CJK column positioning, keyword highlighting without style bleed, and hardware cursor off → on → off.
+
+Marker-aware hosts exposing `renderFakeCursor` must suppress the focused fake cursor when the hardware cursor is visible; older supported hosts retain their existing inverse-video cursor. Only the cursor cell changes: the workflow phrase must stay highlighted. The test detects the optional public helper through the module namespace, with no static named import requiring it on official 1.1.0 or the c2031 fork.
+
+These tests use the SDK/TUI graph selected by the shared compatibility runner. A separate check using exact upstream source for `CustomEditor` and TUI is source-only evidence, not qualification of a complete built SDK, bundled CLI, live terminal or IME. Test/development-only coverage does not require a runtime release or version bump.
