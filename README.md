@@ -1,14 +1,16 @@
 # pi-workflows
 
-pi-workflows adds development recipes and parallel worker scripts to [Pi](https://github.com/earendil-works/pi). Recipes bring in specialists for each stage of a change; scripts handle repeated work across many files.
+pi-workflows adds development recipes and scripted workflows to [Pi](https://github.com/earendil-works/pi). Recipes use specialist agents; scripted workflows coordinate parallel workers.
 
 ![A request in Pi branches into recipes with specialist review gates and product deliverables, or an approved script with parallel workers and collected results.](.github/readme/workflow-paths.png)
 
-*A recipe guides one change. A script splits work across workers and brings back their results.*
+*A recipe guides one change. A scripted workflow splits repeated tasks across workers and collects their results.*
 
-## Install and try it
+## Install and start
 
-You'll need Pi 1.0.0+ and [Pi Subagents](https://github.com/fitchmultz/pi-subagents) 0.44.4+ for the recipe specialists. Run these in your project:
+pi-workflows requires Pi 1.0.0 or later. Recipe agents also require [Pi Subagents](https://github.com/fitchmultz/pi-subagents) 0.44.4 or later.
+
+Run these commands from your project directory:
 
 ```bash
 pi install npm:@fitchmultz/pi-subagents
@@ -16,82 +18,77 @@ pi install npm:@fitchmultz/pi-workflows
 pi
 ```
 
-Then, in Pi:
+Then run this command in Pi:
 
 ```text
 /workflows
-/recipe-design Add account recovery
 ```
 
-`/workflows` shows what's available and tells you which recipe tools are missing. Recipes also need `todo_list`, `ask_question` and `agent_browser_web_search`; install their providers separately before starting a recipe.
+`/workflows` lists 17 recipes, 31 skills and 25 agents. It reports missing recipe tools.
 
-Prefer Git? See [Git installation and migration](docs/development.md#git-installation-and-migration).
+Recipes also require `todo_list`, `ask_question` and `agent_browser_web_search`. Install their providers before you start a recipe.
 
-## Where to start
+## Choose a recipe
 
-| You want to… | Try this |
+Recipes use named agents and include approval points. Type `/recipe` to see recipe commands.
+
+| Task | Command |
 | --- | --- |
-| Plan a feature before changing code | `/recipe-design Add account recovery` |
-| Build a change with review steps | `/recipe-implement Add rate limiting to the public API` |
+| Plan a feature | `/recipe-design Add account recovery` |
+| Build a backend or general change | `/recipe-implement Add rate limiting to the public API` |
 | Investigate a bug | `/recipe-diagnose Login returns 500 after deploy` |
 | Design frontend screens | `/recipe-front-design Add account recovery screens` |
 | Build a full-stack feature | `/recipe-fullstack-implement Add account recovery` |
-| Check many files the same way | `use a workflow to audit every route handler for missing auth` |
-| Cross-check a research question | `/deep-research What changed in Node's permission model between v20 and v22?` |
+| Review a design | `/recipe-review docs/design/rate-limit.md` |
 
-For a small fix or a quick question, just ask Pi directly.
+For frontend work, run `/recipe-front-design`. Next, run `/recipe-front-plan`. Then run `/recipe-front-build`.
 
-## Use a recipe
+## Run a scripted workflow
 
-A recipe tells Pi which specialist to bring in next and when to ask for your approval. You stay in the same conversation while specialists handle the individual steps.
-
-Type `/recipe` to find a recipe in command completion, then put your request after the command:
-
-```text
-/recipe-implement Add rate limiting to the public API
-/recipe-review docs/design/rate-limit.md
-```
-
-`/recipe-implement` handles backend and general development. For frontend work, use `/recipe-front-design` → `/recipe-front-plan` → `/recipe-front-build`. Use `/recipe-fullstack-implement` when the change spans both.
-
-There are 17 recipes, 31 skills and 25 specialist profiles. `/workflows` lists them all.
-
-## Run a script
-
-For a route audit, you can have each worker inspect a different file and collect the answers in one result. Pi writes the JavaScript that coordinates them:
+Use a scripted workflow for repeated tasks across many files. Ask Pi to write one:
 
 ```text
 use a workflow to audit every route handler under src/routes/ for missing auth
 ```
 
-`run a workflow`, `write a workflow` and `ultracode` also trigger scripted work. The phrase highlights in the editor; press Alt+W / Option+W if you didn't mean to trigger it.
+The editor highlights the trigger phrase. Press Alt+W / Option+W to dismiss the highlight.
 
-Before a script runs in the terminal UI, you get these choices:
+The terminal UI shows these choices before the script runs:
 
-| Choice | What happens |
+| Choice | Action |
 | --- | --- |
-| Once | Run this time. |
+| Once | Run the script once. |
 | Always | Skip future approval for this workflow name in this project. |
-| View | Read or edit the script, then return to the approval card. |
-| Deny | Cancel without starting. |
+| View | Read or edit the script. Then return to the approval card. |
+| Deny | Cancel the script before it runs. |
 
-You can also run `/deep-research <question>` to use the bundled research script. Scripted workers use native file and shell tools. They don't inherit recipe specialists or browser extension tools.
+Run `/deep-research <question>` to use the bundled research script.
 
-Workers can read and change files and run shell commands. Only approve scripts you trust: the runtime isn't a security sandbox and has no CPU deadline. RPC uses a confirmation dialog; non-UI runs start without the approval card. Each worker makes model calls, so larger runs use more of your provider's allowance.
+Scripted workers use native file and shell tools. They do not inherit recipe agents or browser tools.
 
-### Watch a run or save it for later
+Workers can change files and run shell commands. Approve only scripts you trust. The runtime has no security sandbox or CPU deadline.
 
-Use `/workflows` to pick a run. You can view its result, pause, resume, stop or save it. Runs and their resume cache last for the current extension session. Saving writes `.pi/workflows/<name>.js`; it becomes `/<name>` in the next session.
+RPC requests confirmation for names without Always approval. Non-UI mode runs scripts without confirmation.
 
-`/workflow-size` shows the agent-count guideline. Change it with `/workflow-size small`, `medium`, `large` or `unrestricted`. The default is `medium` (fewer than 15 agents). These guide the script's size; the runtime still allows at most 16 workers at once and 1,000 calls per run.
+Each worker makes model calls. Large runs use more of your model allowance.
 
-The [scripted workflow guide](docs/scripted-workflows.md) has a complete example and explains worker results, approval and resume behavior.
+## Control a run
+
+Use `/workflows` to view, pause, resume, stop or save a run. Runs and the resume cache last for the current extension session.
+
+Save writes the script to `.pi/workflows/<name>.js`. Pi adds the `/<name>` command in the next session.
+
+`/workflow-size` shows the agent-count guideline. Set it with `/workflow-size small`, `medium`, `large` or `unrestricted`. The default is `medium`: fewer than 15 agents.
+
+The runtime permits at most 16 workers at once and 1,000 calls per run. Size guidelines do not change these limits.
 
 ## More detail
 
-Read the [development guide](docs/development.md) for Git installs, the repository layout and build commands. [Pi contracts and qualification](docs/pi-1.0.md) covers exact host versions and compatibility testing.
+Read [Scripted workflows](docs/scripted-workflows.md) for script examples, worker results and resume behavior.
 
-Changes are in the [changelog](CHANGELOG.md). If something breaks or you have an idea, [open an issue](https://github.com/fitchmultz/pi-workflows/issues).
+Read [Development](docs/development.md) for Git installs, the repository layout and build commands. [Pi contracts and qualification](docs/pi-1.0.md) documents exact host versions and compatibility checks.
+
+Read the [changelog](CHANGELOG.md) for changes. Report problems or suggestions in [issues](https://github.com/fitchmultz/pi-workflows/issues).
 
 ## License
 
