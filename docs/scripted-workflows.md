@@ -55,6 +55,13 @@ Scripts reject direct `import`, `require`, `fetch`, `eval`, `Function` and acces
 
 Trigger phrases are `use a workflow`, `run a workflow`, `write a workflow` and `ultracode`. Alt+W / Option+W dismisses the editor highlight and its workflow steering for the current trigger.
 
+For example:
+
+```text
+run a workflow to migrate src/components/ from styled-components to Tailwind
+ultracode: keep running tsc until it passes or two rounds make no progress
+```
+
 ## Size guidelines
 
 These settings guide the model when it writes a script; they do not change the runtime limits.
