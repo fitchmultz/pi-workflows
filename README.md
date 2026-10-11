@@ -1,157 +1,95 @@
 # pi-workflows
 
-Install the complete recipes, skills, specialist profiles and scripted runtime in [Pi](https://github.com/earendil-works/pi):
+pi-workflows adds development recipes and scripted workflows to [Pi](https://github.com/earendil-works/pi). Recipes use specialist agents; scripted workflows coordinate parallel workers.
+
+![A request in Pi branches into recipes with specialist review gates and product deliverables, or an approved script with parallel workers and collected results.](.github/readme/workflow-paths.png)
+
+*A recipe guides one change. A scripted workflow splits repeated tasks across workers and collects their results.*
+
+## Install and start
+
+pi-workflows requires Pi 1.0.0 or later. Recipe agents also require [Pi Subagents](https://github.com/fitchmultz/pi-subagents) 0.44.4 or later.
+
+Run these commands from your project directory:
 
 ```bash
-pi install npm:@fitchmultz/pi-subagents   # 0.44.4+; required for recipe specialists
+pi install npm:@fitchmultz/pi-subagents
 pi install npm:@fitchmultz/pi-workflows
+pi
 ```
 
-**The unscoped npm package `pi-workflows` is not this project.** This maintained project uses `@fitchmultz/pi-workflows` **0.2.1**, requiring Pi **1.0.0+** and the Subagents prerequisite above. Recipes also use `todo_list`, `ask_question` and `agent_browser_web_search`; install their providers separately. `/workflows` reports missing tools. Scripted workers keep their existing generic native-tool policy.
+Then run this command in Pi:
 
-Git fallback: `pi install git:github.com/fitchmultz/pi-workflows`. Existing tags/branches and project-kit use remain supported. For a checkout, run `npm ci --ignore-scripts`, then `pi` inside the repository to use its existing `.pi` assets. To migrate an installed Git package, remove only its declaration with `pi remove git:github.com/fitchmultz/pi-workflows`, then install the scoped package; do not remove project scripts or settings.
-
-## Which one do I use?
-
-| You want… | Use | Example |
-|---|---|---|
-| One change, with design / review gates | a **recipe** | `/recipe-implement "Add rate limiting"` |
-| Design only, no code yet | a **recipe** | `/recipe-design "Account recovery"` |
-| A bug you do not understand yet | a **recipe** | `/recipe-diagnose "login 500s after deploy"` |
-| The same step on many files, or more agents than one chat can hold | a **scripted workflow** | type `use a workflow to audit every route for missing auth` |
-| Cross-check a question across sources | **bundled script** | `/deep-research What changed in Node's permission model between v20 and v22?` |
-| Repeat a fan-out you already liked | a **saved script** | `/workflows` → Save, then `/audit-routes` |
-
-Recipes keep you in one conversation with specialist agents. Scripted workflows move the plan into JavaScript so intermediate results stay in variables, not in the chat.
-
-## Recipes — staged product work
-
-Type `/recipe` and pick one. Pass the request after the command.
-
-```
-/recipe-implement "Add rate limiting to the public API"
-/recipe-front-design "Add account recovery screens"
-/recipe-review docs/design/rate-limit.md
+```text
+/workflows
 ```
 
-**When a recipe is the right tool**
+`/workflows` lists 17 recipes, 31 skills and 25 agents. It reports missing recipe tools.
 
-- The outcome is still being agreed, or you need a PRD / Design Doc / Work Plan.
-- You want stop-points before implementation.
-- You want named specialists (reviewer, executor, verifier) with a handoff you can inspect.
+Recipes also require `todo_list`, `ask_question` and `agent_browser_web_search`. Install their providers before you start a recipe.
 
-`/recipe-implement` is the full backend/general path. Frontend is `/recipe-front-design` → `/recipe-front-plan` → `/recipe-front-build`. Full-stack is `/recipe-fullstack-implement`.
+## Choose a recipe
 
-Recipe commands expand `$ARGUMENTS`. `/workflows` lists all 17 recipes, 31 skills, and 25 agents.
+Recipes use named agents and include approval points. Type `/recipe` to see recipe commands.
 
-Recipes need these tools: `subagent`, `todo_list`, `ask_question`, `agent_browser_web_search`. `/workflows` says if they are missing.
+| Task | Command |
+| --- | --- |
+| Plan a feature | `/recipe-design Add account recovery` |
+| Build a backend or general change | `/recipe-implement Add rate limiting to the public API` |
+| Investigate a bug | `/recipe-diagnose Login returns 500 after deploy` |
+| Design frontend screens | `/recipe-front-design Add account recovery screens` |
+| Build a full-stack feature | `/recipe-fullstack-implement Add account recovery` |
+| Review a design | `/recipe-review docs/design/rate-limit.md` |
 
-## Scripted workflows — large fan-out
+For frontend work, run `/recipe-front-design`. Next, run `/recipe-front-plan`. Then run `/recipe-front-build`.
 
-Type a trigger in the prompt. It highlights. Alt+W (Option+W) dismisses the highlight if you did not mean it.
+## Run a scripted workflow
 
-```
+Use a scripted workflow for repeated tasks across many files. Ask Pi to write one:
+
+```text
 use a workflow to audit every route handler under src/routes/ for missing auth
-run a workflow to migrate src/components/ from styled-components to Tailwind
-ultracode: keep running tsc until it passes or two rounds make no progress
 ```
 
-The model writes a script and calls the `workflow` tool. In TUI you get a card built from native SelectList/Text controls (configured navigation/confirm/cancel keys take precedence; left/right/Tab remain fallback shortcuts; fullscreen also supports mouse):
+The editor highlights the trigger phrase. Press Alt+W / Option+W to dismiss the highlight.
 
-- **Once** — run this time
-- **Always** — run and skip the card for this name in this repo
-- **View** — read or edit the script, then you return to the card
-- **Deny** — do not run
+The terminal UI shows these choices before the script runs:
 
-Or skip the model and run the bundled one:
+| Choice | Action |
+| --- | --- |
+| Once | Run the script once. |
+| Always | Skip future approval for this workflow name in this project. |
+| View | Read or edit the script. Then return to the approval card. |
+| Deny | Cancel the script before it runs. |
 
-```
-/deep-research How do our three competitors document rate limiting?
-```
+Run `/deep-research <question>` to use the bundled research script.
 
-**When a script is the right tool**
+Scripted workers use native file and shell tools. They do not inherit recipe agents or browser tools.
 
-- Dozens of files, one check each, then a merge step.
-- Independent agents should review each other's findings.
-- You want to pause, resume, or save the orchestration and rerun it.
+Workers can change files and run shell commands. Approve only scripts you trust. The runtime has no security sandbox or CPU deadline.
 
-**When it is the wrong tool**
+RPC requests confirmation for names without Always approval. Non-UI mode runs scripts without confirmation.
 
-- A one-file fix, a question, or anything that still needs a product decision. Use a recipe, or just talk.
+Each worker makes model calls. Large runs use more of your model allowance.
 
-### Size
+## Control a run
 
-Advice to the model when it writes a script. Not a hard cap. Runtime still limits 16 at a time, 1000 per run.
+Use `/workflows` to view, pause, resume, stop or save a run. Runs and the resume cache last for the current extension session.
 
-```
-/workflow-size              # show (default medium, fewer than 15 agents)
-/workflow-size small        # fewer than 5
-/workflow-size large        # fewer than 50
-/workflow-size unrestricted
-```
+Save writes the script to `.pi/workflows/<name>.js`. Pi adds the `/<name>` command in the next session.
 
-Stored in `.pi/workflow-size` in this repo. `--workflow-size medium` overrides for one process.
+`/workflow-size` shows the agent-count guideline. Set it with `/workflow-size small`, `medium`, `large` or `unrestricted`. The default is `medium`: fewer than 15 agents.
 
-### Watch and save
+The runtime permits at most 16 workers at once and 1,000 calls per run. Size guidelines do not change these limits.
 
-```
-/workflows        # status, then pick a run: View / Pause / Resume / Stop / Save
-```
+## More detail
 
-Save writes `.pi/workflows/<name>.js`. That name becomes `/<name>` next session.
+Read [Scripted workflows](docs/scripted-workflows.md) for script examples, worker results and resume behavior.
 
-A script looks like this:
+Read [Development](docs/development.md) for Git installs, the repository layout and build commands. [Pi contracts and qualification](docs/pi-1.0.md) documents exact host versions and compatibility checks.
 
-```js
-export const meta = {
-  name: 'audit-routes',
-  description: 'Audit every route handler for missing auth checks',
-}
+Read the [changelog](CHANGELOG.md) for changes. Report problems or suggestions in [issues](https://github.com/fitchmultz/pi-workflows/issues).
 
-const found = await agent('List every .ts file under src/routes/.', {
-  schema: { type: 'object', required: ['files'], properties: { files: { type: 'array', items: { type: 'string' } } } },
-})
+## License
 
-const audits = await pipeline(found.files, file =>
-  agent(`Audit ${file} for missing authentication checks.`, { label: file }),
-)
-
-return audits.filter(Boolean)
-```
-
-`agent()` returns `null` if that worker is stopped, fails, reaches its output limit, or never produces a completed final assistant. JSONL parsing retains the current record and last assistant rather than whole worker stdout, handles fragmented UTF-8/EOF, and never substitutes logs for an answer. A queued/handled input receipt is not a finished worker: child print mode must actually finish and exit successfully.
-
-Started workers settle before a workflow reports completion. Pause/Stop/shutdown abort owned children; shutdown waits before session-bound UI/report callbacks become stale. Runs belong to the extension instance, not a module-global pool shared across replacement sessions. Resume replays completed results and retries unfinished workers.
-
-Scripts cannot directly import, require, fetch, or touch `process`. This is a **trusted local-script runtime**, not a security sandbox or CPU deadline; approve only scripts you trust and await orchestration. Non-UI mode intentionally runs without the selector; RPC asks for confirmation; project-local Always skips future approval for that name. Native CLI tools retain their existing authority.
-
-## Layout
-
-```
-.pi/extensions/pi-workflows/   # commands, tool, runtime, highlight, card
-.pi/prompts/recipe-*.md        # 17 recipe slash commands
-.pi/skills/                    # 31 skills
-.pi/agents/                    # 25 specialist agents
-.pi/workflows/                 # saved scripts (optional)
-.pi/workflow-size              # size guideline (optional)
-.pi/workflow-allow             # Always names (optional)
-resources/                    # generated public runtime/skills/prompts/profiles for npm/Git packages
-reference/workflows/           # upstream recipe source (MIT)
-```
-
-```bash
-npm ci --ignore-scripts
-npm run build          # only when regenerating the vendored recipe assets
-npm run check:compat
-```
-
-`check:compat` verifies generated assets without rewriting them, type-checks the project extension, and runs the existing Node tests, native project/packed-package discovery and a real child-CLI test. The packed consumer installs the documented scoped Subagents prerequisite; offline qualification can supply a reviewed tarball with `PI_WORKFLOWS_SUBAGENTS_TARBALL=/absolute/package.tgz`. `PI_WORKFLOWS_TARBALL=/absolute/workflows.tgz` reuses one exact artifact across host checks. The supported/development baseline is official Pi 1.0.0, with its exact eight-package 1.0 cohort, TypeBox 1.3.27 and physical Node 24.21.0 used for qualification. The shared compatibility runner installs the selected official or fork cohort in this checkout's `node_modules`; the test verifies SDK/types/manifest-bin identity rather than finding `pi` on PATH. The child executes JSON print mode against a credential-free loopback provider, proving completed/length-limited result and awaited shutdown behavior without paid calls. Tests select the exact PI_PACKAGE_DIR/SDK/manifest-bin identity in an isolated environment, not an inherited live fork override.
-
-The generator preserves the project `.pi` kit and also produces the public `resources/` package layout. Only source-owned runtime/skills/prompts/profiles ship; private `.pi` scripts, size/Always state and user data never enter the tarball. The explicit Pi manifest loads the public runtime, skills and recipe prompts. Subagents 0.44.4+ reads the package's separate `subagents.agents` manifest through configured installed-package discovery. Profiles are read-only fallbacks below user/trusted-project overrides. No copying into user directories or live activation is needed.
-
-Native project tests retain trusted `.pi` discovery and the actual child CLI contracts. `scripts/package.test.mjs` verifies a packed artifact in an unrelated clean consumer with actual Subagents profile-tool calls, native recipe/skill discovery, runtime commands and project-local state. Generic resource loading alone is not profile composition or recipe execution proof. UI qualification covers native-control approval/edit/cancel and keyword-editor flow in default fullscreen and regular mode, narrow/wide/CJK, focus, resize and disposal. No Node/platform floor is raised by the development baseline.
-
-See [Pi 1.0 contracts and qualification](docs/pi-1.0.md) for the exact source, lifecycle boundaries, known script-runtime ceiling and repeatable checks, and the [changelog](CHANGELOG.md) for release changes.
-
-Upstream recipe content: MIT, © Shinsuke Kagawa (`reference/workflows/LICENSE`).
-This repo's port and extension: MIT.
+[MIT](LICENSE).
