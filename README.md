@@ -4,17 +4,26 @@ pi-workflows adds development recipes and scripted workflows to [Pi](https://git
 
 ![A request in Pi branches into recipes with specialist review gates and product deliverables, or an approved script with parallel workers and collected results.](.github/readme/workflow-paths.png)
 
-*A recipe guides one change. A scripted workflow splits repeated tasks across workers and collects their results.*
-
 ## Install and start
 
 pi-workflows requires Pi 1.0.0 or later. Recipe agents also require [Pi Subagents](https://github.com/fitchmultz/pi-subagents) 0.44.4 or later.
+
+Recipes also require [`todo_list`](https://github.com/fitchmultz/pi-todo-list), [`ask_question`](https://github.com/fitchmultz/pi-ask-question), and [`agent_browser_web_search`](https://github.com/fitchmultz/pi-agent-browser-native#optional-search-and-settings).
 
 Run these commands from your project directory:
 
 ```bash
 pi install npm:@fitchmultz/pi-subagents
+pi install git:github.com/fitchmultz/pi-todo-list
+pi install npm:@fitchmultz/pi-ask-question
+pi install npm:pi-agent-browser-native
 pi install npm:@fitchmultz/pi-workflows
+```
+
+Set `EXA_API_KEY` for Exa, or `BRAVE_API_KEY` for Brave. Provider charges apply.
+
+```bash
+export EXA_API_KEY="your_exa_api_key"
 pi
 ```
 
@@ -25,8 +34,6 @@ Then run this command in Pi:
 ```
 
 `/workflows` lists 17 recipes, 31 skills and 25 agents. It reports missing recipe tools.
-
-Recipes also require `todo_list`, `ask_question` and `agent_browser_web_search`. Install their providers before you start a recipe.
 
 ## Choose a recipe
 
