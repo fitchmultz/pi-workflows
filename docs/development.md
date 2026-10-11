@@ -10,7 +10,7 @@ The Git package source remains supported:
 pi install git:github.com/fitchmultz/pi-workflows
 ```
 
-Existing tag/branch installs and project-kit use remain supported. For a checkout, run `npm ci --ignore-scripts`, then start `pi` inside the repository to use its `.pi` assets after granting project trust.
+For a checkout, run `npm ci --ignore-scripts`, then start `pi` inside the repository to use its `.pi` assets after granting project trust.
 
 To move an installed Git package to the scoped npm package, remove only its package declaration and install the scoped source:
 
