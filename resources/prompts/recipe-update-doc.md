@@ -2,6 +2,16 @@
 description: Update existing design documents (Design Doc / PRD / ADR) with review
 argument-hint: "[input]"
 ---
+## Pi recipe prerequisites
+
+This optional recipe requires a compatible multi-agent executor and extension tools; native Pi does not supply them. All four tools in step 1 are hard runtime prerequisites for every recipe, including recipes without external research. Before any recipe phase or artifact production:
+
+1. Inspect available tools and any advertised discovery catalog. Require `subagent` with `agent`, `task`, `label` and parallel `tasks` support, `todo_list`, `ask_question` and `agent_browser_web_search`. If advanced `subagent` is inactive, call `load_subagent({advanced:true})` only when that loader is available, then inspect its instructions before delegation. Pi Subagents 0.44.4+, pi-todo-list, pi-ask-question and pi-agent-browser-native provide these integrations; they are not dependencies of the standalone scripted runtime.
+2. Use `subagent({action:"list"})` to verify the named specialists required by this recipe resolve from its bundled profiles or intentional user/project overrides. Serialize each specialist's canonical input fields inside the `task` string; they are not top-level tool parameters. Use `label` for the short call description. If the executor, loader, profile or required tool is missing, excluded or incompatible, stop and report the exact prerequisite and phase. Do not imitate specialists inline, silently serialize parallel reviews, skip required steps or assume a loader is installed.
+3. Preserve every approval stop with an explicit user answer. If `ask_question` has no working TUI/RPC dialog, stop at that gate rather than assuming approval. Before required external research, verify the search provider is configured; when a public URL requires `agent_browser`, discover that tool too. A failed or unavailable provider blocks dependent research: report the verification limitation, never claim completed research. Pass this capability boundary to specialists that require those tools.
+
+The `workflow` tool and scripted `agent()/pipeline()` remain independently usable with native Pi tools and do not require these recipe integrations.
+
 Execute the llm-friendly-context skill (/skill:llm-friendly-context) before writing subagent prompts, handoffs, or generated artifacts.
 Execute the subagents-orchestration-guide skill (/skill:subagents-orchestration-guide) before making workflow decisions, invoking agents, or resolving findings.
 
@@ -103,8 +113,8 @@ Pass the resulting items, covered sections, and any stated total size budget to 
 Invoke the update agent determined in Step 2:
 ```
 agent: [Update agent from Step 2]
-description: "Update [Type from Step 2]"
-prompt: |
+label: "Update [Type from Step 2]"
+task: |
   Operation Mode: update
   Existing Document: [path from Step 1]
 
@@ -120,8 +130,8 @@ prompt: |
 **For Design Doc updates only**: Before document-reviewer, invoke code-verifier:
 ```
 agent: code-verifier
-description: "Verify updated Design Doc"
-prompt: |
+label: "Verify updated Design Doc"
+task: |
   doc_type: design-doc
   document_path: [path from Step 1]
   Verify the updated Design Doc against current codebase.
@@ -147,8 +157,8 @@ For each type, review consistency of the changed sections and their dependent st
 - Needs revision → Apply the Review Resolution Gate. Return to Step 4 when `apply` findings exist, using the following prompt:
   ```
   agent: [Update agent from Step 2]
-  description: "Revise [Type from Step 2]"
-  prompt: |
+  label: "Revise [Type from Step 2]"
+  task: |
     Operation Mode: update
     Existing Document: [path from Step 1]
 
@@ -165,8 +175,8 @@ For each type, review consistency of the changed sections and their dependent st
 **For Design Doc only**, invoke design-sync first:
 ```
 agent: design-sync
-description: "Verify consistency"
-prompt: "source_design: [path from Step 1]"
+label: "Verify consistency"
+task: "source_design: [path from Step 1]"
 ```
 
 When conflicts are detected, apply the Review Resolution Gate using design-sync as a fresh verifier. Return `apply` conflicts to Step 4 for the owning document, rerun design-sync after correction, retain evidenced declines as complete, and request user input for `user_decision_required` or the Gate's escalation conditions.

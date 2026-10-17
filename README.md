@@ -6,24 +6,12 @@ pi-workflows adds development recipes and scripted workflows to [Pi](https://git
 
 ## Install and start
 
-pi-workflows requires Pi 1.0.0 or later. Recipe agents also require [Pi Subagents](https://github.com/fitchmultz/pi-subagents) 0.44.4 or later.
-
-Recipes also require [`todo_list`](https://github.com/fitchmultz/pi-todo-list), [`ask_question`](https://github.com/fitchmultz/pi-ask-question), and [`agent_browser_web_search`](https://github.com/fitchmultz/pi-agent-browser-native#optional-search-and-settings).
+pi-workflows requires Pi 1.0.0 or later. The scripted `workflow` / `agent()` / `pipeline()` runtime works independently, without other extensions.
 
 Run these commands from your project directory:
 
 ```bash
-pi install npm:@fitchmultz/pi-subagents
-pi install git:github.com/fitchmultz/pi-todo-list
-pi install npm:@fitchmultz/pi-ask-question
-pi install npm:pi-agent-browser-native
 pi install npm:@fitchmultz/pi-workflows
-```
-
-Set `EXA_API_KEY` for Exa, or `BRAVE_API_KEY` for Brave. Provider charges apply.
-
-```bash
-export EXA_API_KEY="your_exa_api_key"
 pi
 ```
 
@@ -33,7 +21,24 @@ Then run this command in Pi:
 /workflows
 ```
 
-`/workflows` lists 17 recipes, 31 skills and 25 agents. It reports missing recipe tools.
+`/workflows` lists 17 recipes, 31 skills and 25 agents. It reports unavailable recipe integrations without disabling scripted workflows.
+
+### Optional recipe integrations
+
+Recipes inherently use isolated specialists, parallel reviews, progress tools and explicit approval gates. They require [Pi Subagents](https://github.com/fitchmultz/pi-subagents) 0.44.4+ (or a compatible `subagent` executor with `agent`/`task`/`label`/`tasks`), [`todo_list`](https://github.com/fitchmultz/pi-todo-list), [`ask_question`](https://github.com/fitchmultz/pi-ask-question), and [`agent_browser_web_search`](https://github.com/fitchmultz/pi-agent-browser-native#optional-search-and-settings). All four are hard runtime prerequisites for every recipe, even recipes without external research. These are extension integrations, not native Pi tools.
+
+```bash
+pi install npm:@fitchmultz/pi-subagents
+pi install git:github.com/fitchmultz/pi-todo-list
+pi install npm:@fitchmultz/pi-ask-question
+pi install npm:pi-agent-browser-native
+```
+
+Configure `EXA_API_KEY` for Exa or `BRAVE_API_KEY` for Brave when using recipe research. Provider charges apply.
+
+Owned `/recipe-*` and `/skill:recipe-*` invocations stop before model work when required tools are missing, disabled or incompatible. Cold Subagents is supported through its advertised `load_subagent` loader; native discovery can restore selected, instruction-group-deferred tools. A denied recipe reports the exact tools and does not steer an unrelated running turn. Text/JSON print mode also writes the diagnostic to stderr and exits nonzero.
+
+Recipe instructions then verify specialist profiles and provider/dialog readiness before use; a missing capability is reported, not replaced with inline specialists, serialized reviews or assumed approval. The same instructions apply when a model reads a recipe skill directly. That model-read path is guidance, not a deterministic runtime guard.
 
 ## Choose a recipe
 

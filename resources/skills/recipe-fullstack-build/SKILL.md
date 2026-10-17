@@ -4,6 +4,16 @@ description: Execute materialized fullstack task files with layer-aware agent ro
 disable-model-invocation: true
 ---
 
+## Pi recipe prerequisites
+
+This optional recipe requires a compatible multi-agent executor and extension tools; native Pi does not supply them. All four tools in step 1 are hard runtime prerequisites for every recipe, including recipes without external research. Before any recipe phase or artifact production:
+
+1. Inspect available tools and any advertised discovery catalog. Require `subagent` with `agent`, `task`, `label` and parallel `tasks` support, `todo_list`, `ask_question` and `agent_browser_web_search`. If advanced `subagent` is inactive, call `load_subagent({advanced:true})` only when that loader is available, then inspect its instructions before delegation. Pi Subagents 0.44.4+, pi-todo-list, pi-ask-question and pi-agent-browser-native provide these integrations; they are not dependencies of the standalone scripted runtime.
+2. Use `subagent({action:"list"})` to verify the named specialists required by this recipe resolve from its bundled profiles or intentional user/project overrides. Serialize each specialist's canonical input fields inside the `task` string; they are not top-level tool parameters. Use `label` for the short call description. If the executor, loader, profile or required tool is missing, excluded or incompatible, stop and report the exact prerequisite and phase. Do not imitate specialists inline, silently serialize parallel reviews, skip required steps or assume a loader is installed.
+3. Preserve every approval stop with an explicit user answer. If `ask_question` has no working TUI/RPC dialog, stop at that gate rather than assuming approval. Before required external research, verify the search provider is configured; when a public URL requires `agent_browser`, discover that tool too. A failed or unavailable provider blocks dependent research: report the verification limitation, never claim completed research. Pass this capability boundary to specialists that require those tools.
+
+The `workflow` tool and scripted `agent()/pipeline()` remain independently usable with native Pi tools and do not require these recipe integrations.
+
 Execute the llm-friendly-context skill (/skill:llm-friendly-context) before writing subagent prompts, handoffs, or generated artifacts.
 Execute the subagents-orchestration-guide skill (/skill:subagents-orchestration-guide) before making workflow decisions, invoking agents, or resolving findings.
 
@@ -75,8 +85,8 @@ Use the normal Work Plan review and approval gate when batch approval is absent.
 ### 2. Task Materialization
 Invoke task-decomposer using subagent tool:
 - `agent`: "task-decomposer"
-- `description`: "Materialize work plan tasks"
-- `prompt`: "Read work plan at docs/plans/[plan-name].md and output individual single-commit task files in docs/plans/tasks/. Use layer-aware naming: {plan}-backend-task-{n}.md, {plan}-frontend-task-{n}.md from each Work Plan task's Executor lane."
+- `label`: "Materialize work plan tasks"
+- `task`: "Read work plan at docs/plans/[plan-name].md and output individual single-commit task files in docs/plans/tasks/. Use layer-aware naming: {plan}-backend-task-{n}.md, {plan}-frontend-task-{n}.md from each Work Plan task's Executor lane."
 
 ### 3. Verify Generation
 Recompute the Consumed Task Set using the same restricted pattern from the Consumed Task Set section above. When it remains empty, apply Specialist Result Acceptance: validate the invocation and returned artifacts, correct recoverable input or naming errors, and rerun. Stop for the user only when resolving the plan or intended layer boundary requires a user-owned decision.
