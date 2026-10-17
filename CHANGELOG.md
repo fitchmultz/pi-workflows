@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Admit compatible tools with native namespace grouping, including browser search, while retaining exact callable-name, schema and availability checks.
 - Keep scripted workflows independently installable; guard owned recipe prompt/skill invocations against missing, disabled or incompatible optional integrations before model work.
 - Recognize native current-branch instruction-group deferrals without widening selection. Report denied recipes in UI and stderr/nonzero print status without steering an in-flight turn; keep all four tools as hard recipe prerequisites.
 - Generate recipe capability/profile/approval checks and supported Subagents `task`/`label` calls without rewriting metadata or nested specialist inputs. Verify canonical skills, profiles and packaged copies for drift.

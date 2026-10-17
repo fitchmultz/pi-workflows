@@ -30,7 +30,7 @@ const promptsDir = join(piDir, "prompts");
 const RECIPE_TOOLS = ["subagent", "todo_list", "ask_question", "agent_browser_web_search"];
 
 function unavailableRecipeTools(pi: ExtensionAPI, ctx: ExtensionContext): string[] {
-	const tools = new Map(pi.getAllTools().filter((tool) => !tool.namespace).map((tool) => [tool.name, tool]));
+	const tools = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
 	const active = new Set(pi.getActiveTools());
 	let groupDeferred = new Set<string>();
 	if (active.has("discover_tools")) {

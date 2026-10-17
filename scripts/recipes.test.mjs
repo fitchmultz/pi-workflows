@@ -48,16 +48,17 @@ test("native recipe admission preserves selection, discovery, branch ownership a
       { name: "standalone", tools: [], missing: prerequisites },
       { name: "missing executor", tools: prerequisites.slice(1), missing: ["subagent"] },
       { name: "missing approval", tools: prerequisites.filter(name => name !== "ask_question"), missing: ["ask_question"] },
-      { name: "incompatible executor", tools: prerequisites, incompatible: true, missing: ["subagent"] },
+      { name: "incompatible grouped executor", tools: prerequisites, namespace: "subagent", incompatible: true, missing: ["subagent"] },
       { name: "hidden executor", tools: [...prerequisites, "load_subagent"], hidden: "subagent", missing: ["subagent"] },
       { name: "excluded executor", tools: [...prerequisites, "load_subagent"], excluded: "subagent", missing: ["subagent"] },
-      { name: "namespaced namesake is not the executor", tools: prerequisites, namespace: "subagent", missing: ["subagent"] },
+      { name: "namespace grouping preserves a compatible executor's callable name", tools: prerequisites, namespace: "subagent", missing: [] },
+      { name: "a foreign tool's namespace alias is not the executor's callable name", tools: prerequisites, foreign: "subagent", missing: ["subagent"] },
       { name: "inactive executor without loader", tools: prerequisites, inactive: "subagent", missing: ["subagent"] },
       { name: "deferred tool without discovery", tools: prerequisites, deferred: "todo_list", missing: ["todo_list"] },
       { name: "deferred tool with real native tool_search", tools: prerequisites, deferred: "todo_list", discovery: "tool_search", missing: [] },
       { name: "deferred tool with real native codemode", tools: prerequisites, deferred: "todo_list", discovery: "codemode", missing: [] },
       { name: "cold lazy executor", tools: [...prerequisites, "load_subagent"], inactive: "subagent", missing: [] },
-      { name: "active executor", tools: prerequisites, missing: [] },
+      { name: "active executor and native browser namespace", tools: prerequisites, missing: [] },
       { name: "stale instruction entry without discovery", tools: prerequisites, inactive: "agent_browser_web_search", stale: true, missing: ["agent_browser_web_search"] },
       { name: "excluded tool cannot be admitted by stale discovery state", tools: prerequisites, excluded: "agent_browser_web_search", stale: true, groups: true, missing: ["agent_browser_web_search"] },
       { name: "real fork group deferral, latest array and current branch", tools: prerequisites, discovery: "codemode", groups: true, missing: [] },
@@ -79,10 +80,16 @@ test("native recipe admission preserves selection, discovery, branch ownership a
               controls = pi;
               for (const name of config.tools) {
                 const definition = {
-                  name, label: name, description: "Capability fixture",
+                  name: config.foreign === name ? "other_provider_subagent" : name,
+                  label: name, description: "Capability fixture",
                   ...(config.hidden === name ? { exposure: "hidden" } : {}),
                   ...(config.deferred === name ? { exposure: "deferred" } : {}),
+                  ...(name === "agent_browser_web_search" ? { namespace: {
+                    name: "browser", description: "Browser commands and optional web search.",
+                    instructions: "Optional web search is available only when configured.",
+                  } } : {}),
                   ...(config.namespace === name ? { namespace: { name: "other-provider" } } : {}),
+                  ...(config.foreign === name ? { namespace: { name: "other-provider", aliases: ["subagent"] } } : {}),
                   ...(config.inactive === name ? { defaultActive: false } : {}),
                   parameters: name === "subagent" && !config.incompatible ? Type.Object({
                     agent: Type.String(), task: Type.String(), label: Type.Optional(Type.String()),
