@@ -4,6 +4,16 @@ description: Design Doc compliance and security validation with optional auto-fi
 disable-model-invocation: true
 ---
 
+## Pi recipe prerequisites
+
+This optional recipe requires a compatible multi-agent executor and extension tools; native Pi does not supply them. All four tools in step 1 are hard runtime prerequisites for every recipe, including recipes without external research. Before any recipe phase or artifact production:
+
+1. Inspect available tools and any advertised discovery catalog. Require `subagent` with `agent`, `task`, `label` and parallel `tasks` support, `todo_list`, `ask_question` and `agent_browser_web_search`. If advanced `subagent` is inactive, call `load_subagent({advanced:true})` only when that loader is available, then inspect its instructions before delegation. Pi Subagents 0.44.4+, pi-todo-list, pi-ask-question and pi-agent-browser-native provide these integrations; they are not dependencies of the standalone scripted runtime.
+2. Use `subagent({action:"list"})` to verify the named specialists required by this recipe resolve from its bundled profiles or intentional user/project overrides. Serialize each specialist's canonical input fields inside the `task` string; they are not top-level tool parameters. Use `label` for the short call description. If the executor, loader, profile or required tool is missing, excluded or incompatible, stop and report the exact prerequisite and phase. Do not imitate specialists inline, silently serialize parallel reviews, skip required steps or assume a loader is installed.
+3. Preserve every approval stop with an explicit user answer. If `ask_question` has no working TUI/RPC dialog, stop at that gate rather than assuming approval. Before required external research, verify the search provider is configured; when a public URL requires `agent_browser`, discover that tool too. A failed or unavailable provider blocks dependent research: report the verification limitation, never claim completed research. Pass this capability boundary to specialists that require those tools.
+
+The `workflow` tool and scripted `agent()/pipeline()` remain independently usable with native Pi tools and do not require these recipe integrations.
+
 Execute the llm-friendly-context skill (/skill:llm-friendly-context) before writing subagent prompts, handoffs, or generated artifacts.
 Execute the subagents-orchestration-guide skill (/skill:subagents-orchestration-guide) before making workflow decisions, invoking agents, or resolving findings.
 
@@ -43,16 +53,16 @@ Use the Design Doc explicitly supplied in `the skill invocation arguments`. When
 ### Step 2: Execute code-reviewer
 Invoke code-reviewer using subagent tool:
 - `agent`: "code-reviewer"
-- `description`: "Code compliance review"
-- `prompt`: "Design Doc: [path]. Implementation files: [implementationFiles]. Review mode: full. Validate Design Doc compliance and return structured JSON report."
+- `label`: "Code compliance review"
+- `task`: "Design Doc: [path]. Implementation files: [implementationFiles]. Review mode: full. Validate Design Doc compliance and return structured JSON report."
 
 **Store output as**: `$STEP_2_OUTPUT`
 
 ### Step 3: Execute security-reviewer
 Invoke security-reviewer using subagent tool:
 - `agent`: "security-reviewer"
-- `description`: "Security review"
-- `prompt`: "governingDocuments: [{\"type\":\"design-doc\",\"path\":\"[path]\"}]. implementationFiles: [implementationFiles]. Review security compliance."
+- `label`: "Security review"
+- `task`: "governingDocuments: [{\"type\":\"design-doc\",\"path\":\"[path]\"}]. implementationFiles: [implementationFiles]. Review security compliance."
 
 **Store output as**: `$STEP_3_OUTPUT`
 
@@ -103,19 +113,19 @@ Run this step only when the user routed at least one finding to `d`. When no `d`
 
 1. Invoke technical-designer in update mode using subagent tool:
    - `agent`: "technical-designer"
-   - `description`: "Design Doc update from review findings"
-   - `prompt`: "Update Design Doc at [path] in update mode. Ratify these findings in the design rather than the code: [complete `d`-routed finding objects from $STEP_2_OUTPUT, unchanged except for their approved routes]. Reflect the current code behavior in the relevant sections and add a history entry."
+   - `label`: "Design Doc update from review findings"
+   - `task`: "Update Design Doc at [path] in update mode. Ratify these findings in the design rather than the code: [complete `d`-routed finding objects from $STEP_2_OUTPUT, unchanged except for their approved routes]. Reflect the current code behavior in the relevant sections and add a history entry."
 
 2. Invoke document-reviewer to verify the updated Design Doc:
    - `agent`: "document-reviewer"
-   - `description`: "Document review of updated Design Doc"
-   - `prompt`: "Review updated Design Doc at [path] for consistency and completeness. doc_type: DesignDoc. review_context: update."
+   - `label`: "Document review of updated Design Doc"
+   - `task`: "Review updated Design Doc at [path] for consistency and completeness. doc_type: DesignDoc. review_context: update."
    - Run the Review Resolution Gate through its correction re-review, escalation, and convergence transitions, using technical-designer for rerouted corrections. Proceed only at its convergence condition.
 
 3. When more than one Design Doc exists under `docs/design/`, invoke design-sync:
    - `agent`: "design-sync"
-   - `description`: "Cross-DD consistency check"
-   - `prompt`: "source_design: [updated DD path]"
+   - `label`: "Cross-DD consistency check"
+   - `task`: "source_design: [updated DD path]"
    - When `sync_status: CONFLICTS_FOUND`, apply the Review Resolution Gate using design-sync as a fresh verifier. Send the `apply` conflicts to the owning technical-designer, rerun design-sync after correction, retain evidenced declines as complete, and request user input for `user_decision_required` or the Gate's escalation conditions.
 
 4. After Step 5 completes:
@@ -126,7 +136,7 @@ Run this step only when the user routed at least one finding to `d`. When no `d`
 
 Invoke task-executor using subagent tool:
 - `agent`: "task-executor"
-- `description`: "Execute review fixes"
+- `label`: "Execute review fixes"
 - `direct_scope`: Apply the approved code-side corrections within the confirmed review scope and stated total size budget
 - `governing_sources`: The reviewed Design Doc and accepted requirement or ADR paths
 - `target_paths`: The implementation and test paths confirmed for the approved code-side routes
@@ -137,9 +147,9 @@ Invoke task-executor using subagent tool:
 
 Invoke quality-fixer using subagent tool:
 - `agent`: "quality-fixer"
-- `description`: "Quality gate check"
+- `label`: "Quality gate check"
 - Pass Step 6 `mutationEvidence`.
-- `prompt`: "Confirm quality gate passage for fixed files."
+- `task`: "Confirm quality gate passage for fixed files."
 
 Route the quality-fixer result:
 - `approved` → Proceed to Step 8
@@ -153,8 +163,8 @@ Immediately before this invocation, re-derive `implementationFiles` using the St
 
 Invoke code-reviewer using subagent tool:
 - `agent`: "code-reviewer"
-- `description`: "Re-validate compliance"
-- `prompt`: "Re-validate Design Doc compliance after fixes. Design Doc: [path]. Implementation files: [implementationFiles]. prior_feedback: [{id, disposition, reason?, evidence}]. Reconcile every prior item under the reviewer's re-review scope."
+- `label`: "Re-validate compliance"
+- `task`: "Re-validate Design Doc compliance after fixes. Design Doc: [path]. Implementation files: [implementationFiles]. prior_feedback: [{id, disposition, reason?, evidence}]. Reconcile every prior item under the reviewer's re-review scope."
 
 ### Step 9: Re-validate security-reviewer
 
@@ -162,8 +172,8 @@ Immediately before this invocation, re-derive `implementationFiles` using the St
 
 Invoke security-reviewer using subagent tool (only if security fixes were applied):
 - `agent`: "security-reviewer"
-- `description`: "Re-validate security"
-- `prompt`: "Re-validate security after fixes. governingDocuments: [{\"type\":\"design-doc\",\"path\":\"[path]\"}]. implementationFiles: [implementationFiles]. prior_feedback: [{id, disposition, reason?, evidence}]. Reconcile every prior item under the reviewer's re-review scope."
+- `label`: "Re-validate security"
+- `task`: "Re-validate security after fixes. governingDocuments: [{\"type\":\"design-doc\",\"path\":\"[path]\"}]. implementationFiles: [implementationFiles]. prior_feedback: [{id, disposition, reason?, evidence}]. Reconcile every prior item under the reviewer's re-review scope."
 
 Apply the Review Resolution Gate to every Step 8 and Step 9 result before Step 10. Follow its `maintained` transitions and repeat the affected verification after a rerouted correction; stop at its escalation conditions; proceed at its convergence condition.
 

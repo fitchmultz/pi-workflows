@@ -27,6 +27,39 @@ const piDir = join(here, "..", "..");
 const skillsDir = join(piDir, "skills");
 const agentsDir = join(piDir, "agents");
 const promptsDir = join(piDir, "prompts");
+const RECIPE_TOOLS = ["subagent", "todo_list", "ask_question", "agent_browser_web_search"];
+
+function unavailableRecipeTools(pi: ExtensionAPI, ctx: ExtensionContext): string[] {
+	const tools = new Map(pi.getAllTools().filter((tool) => !tool.namespace).map((tool) => [tool.name, tool]));
+	const active = new Set(pi.getActiveTools());
+	let groupDeferred = new Set<string>();
+	if (active.has("discover_tools")) {
+		// ponytail: input precedes native deferral retirement; recipe preflight is the final capability check.
+		for (const entry of ctx.sessionManager.getBranch()) {
+			if (entry.type !== "custom" || entry.customType !== "pi:instruction-groups") continue;
+			const data = entry.data;
+			if (data && typeof data === "object" && "inactive" in data && Array.isArray(data.inactive)) {
+				groupDeferred = new Set(data.inactive.filter((name): name is string => typeof name === "string"));
+			}
+		}
+	}
+	const available = (name: string): boolean => {
+		const tool = tools.get(name);
+		return !!tool && tool.exposure !== "hidden" &&
+			(active.has(name) || groupDeferred.has(name) || ((active.has("codemode") || active.has("tool_search")) &&
+				(tool.exposure === "codemode" || tool.exposure === "deferred")));
+	};
+	return RECIPE_TOOLS.filter((name) => {
+		if (name !== "subagent") return !available(name);
+		const tool = tools.get(name);
+		const schema = tool?.parameters;
+		const properties = schema && "properties" in schema ? schema.properties : undefined;
+		return !tool || tool.exposure === "hidden" ||
+			!properties || typeof properties !== "object" ||
+			!["agent", "task", "label", "tasks"].every((key) => key in properties) ||
+			(!available(name) && !available("load_subagent"));
+	});
+}
 
 const DEEP_RESEARCH = `export const meta = {
   name: 'deep-research',
@@ -266,9 +299,7 @@ export default function (pi: ExtensionAPI) {
 				: [];
 			const agents = listDirNames(agentsDir, "file");
 			const recipes = listDirNames(promptsDir, "file");
-			const tools = new Set(pi.getAllTools().map((t) => t.name));
-			const required = ["subagent", "todo_list", "ask_question", "agent_browser_web_search"];
-			const missing = required.filter((t) => !tools.has(t));
+			const missing = unavailableRecipeTools(pi, ctx);
 			const saved = [...discoverSaved(ctx.cwd).values()].map((s) => s.meta.name);
 			const size = sizeFor(ctx.cwd);
 			const runLines = [...runs.values()].map((r) => `${r.status} ${r.name} (${r.id})`);
@@ -279,8 +310,8 @@ export default function (pi: ExtensionAPI) {
 				`Saved scripts: ${saved.map((n) => `/${n}`).join(", ") || "none"}`,
 				`Size: ${size} (${SIZE_HINT[size]}) — /workflow-size to change`,
 				missing.length
-					? `Missing recipe tools: ${missing.join(", ")}`
-					: `Recipe tools present: ${required.join(", ")}`,
+					? `Missing, disabled or incompatible recipe tools: ${missing.join(", ")}. Scripted workflows remain available.`
+					: `Recipe tools registered: ${RECIPE_TOOLS.join(", ")}; recipes verify profiles and provider readiness before use.`,
 				runLines.length ? `Runs:\n${runLines.join("\n")}` : "Runs: none",
 			].join("\n");
 
@@ -361,6 +392,33 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("input", async (event, ctx) => {
+		const invocation = event.text.match(/^\/((?:skill:)?recipe-[a-z0-9-]+)(?:\s|$)/)?.[1];
+		if (invocation) {
+			const command = pi.getCommands().find((command) => command.name === invocation);
+			const recipe = invocation.replace(/^skill:/, "");
+			const ownedPath = command?.source === "skill" ? join(skillsDir, recipe, "SKILL.md")
+				: command?.source === "prompt" ? join(promptsDir, `${recipe}.md`) : undefined;
+			// Names alone would also intercept another package's recipe or a user override.
+			if (ownedPath && command?.sourceInfo.path === ownedPath) {
+				const missing = unavailableRecipeTools(pi, ctx);
+				if (missing.length) {
+					const text = `Recipe ${recipe} not started. Missing, disabled or incompatible tools: ${missing.join(", ")}. Recipes require a compatible multi-agent executor (Pi Subagents 0.44.4+ with agent/task/label/tasks), pi-todo-list, pi-ask-question and pi-agent-browser-native search. Install or enable these integrations, then retry. Do not replace specialists or approval gates with inline work. Standalone scripted workflows remain available through the workflow tool.`;
+					pi.sendMessage({
+						customType: "recipe-unavailable",
+						content: [{ type: "text", text }],
+						display: true,
+						details: { recipe, missing },
+					}, { triggerTurn: false });
+					if (ctx.hasUI) ctx.ui.notify(text, "error");
+					else {
+						console.error(text);
+						// ponytail: SDK and print share exitCode; continuing embedders must consume the diagnostic and reset it.
+						process.exitCode = 1;
+					}
+					return { action: "handled" as const };
+				}
+			}
+		}
 		if (event.source !== "interactive") return { action: "continue" as const };
 		return { action: "transform" as const, text: decorateInput(event.text, sizeFor(ctx.cwd)) };
 	});

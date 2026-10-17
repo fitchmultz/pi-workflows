@@ -4,6 +4,16 @@ description: Generate PRD and Design Docs from existing codebase through discove
 disable-model-invocation: true
 ---
 
+## Pi recipe prerequisites
+
+This optional recipe requires a compatible multi-agent executor and extension tools; native Pi does not supply them. All four tools in step 1 are hard runtime prerequisites for every recipe, including recipes without external research. Before any recipe phase or artifact production:
+
+1. Inspect available tools and any advertised discovery catalog. Require `subagent` with `agent`, `task`, `label` and parallel `tasks` support, `todo_list`, `ask_question` and `agent_browser_web_search`. If advanced `subagent` is inactive, call `load_subagent({advanced:true})` only when that loader is available, then inspect its instructions before delegation. Pi Subagents 0.44.4+, pi-todo-list, pi-ask-question and pi-agent-browser-native provide these integrations; they are not dependencies of the standalone scripted runtime.
+2. Use `subagent({action:"list"})` to verify the named specialists required by this recipe resolve from its bundled profiles or intentional user/project overrides. Serialize each specialist's canonical input fields inside the `task` string; they are not top-level tool parameters. Use `label` for the short call description. If the executor, loader, profile or required tool is missing, excluded or incompatible, stop and report the exact prerequisite and phase. Do not imitate specialists inline, silently serialize parallel reviews, skip required steps or assume a loader is installed.
+3. Preserve every approval stop with an explicit user answer. If `ask_question` has no working TUI/RPC dialog, stop at that gate rather than assuming approval. Before required external research, verify the search provider is configured; when a public URL requires `agent_browser`, discover that tool too. A failed or unavailable provider blocks dependent research: report the verification limitation, never claim completed research. Pass this capability boundary to specialists that require those tools.
+
+The `workflow` tool and scripted `agent()/pipeline()` remain independently usable with native Pi tools and do not require these recipe integrations.
+
 Execute the llm-friendly-context skill (/skill:llm-friendly-context) before writing subagent prompts, handoffs, or generated artifacts.
 Execute the subagents-orchestration-guide skill (/skill:subagents-orchestration-guide) before making workflow decisions, invoking agents, or resolving findings.
 
@@ -72,8 +82,8 @@ Phase 2: Design Doc Generation (if requested)
 **subagent tool invocation**:
 ```
 agent: scope-discoverer
-description: "Discover functional scope"
-prompt: |
+label: "Discover functional scope"
+task: |
   Discover functional scope targets in the codebase.
 
   target_path: $USER_TARGET_PATH
@@ -101,8 +111,8 @@ prompt: |
 **subagent tool invocation**:
 ```
 agent: prd-creator
-description: "Generate PRD"
-prompt: |
+label: "Generate PRD"
+task: |
   Create reverse-engineered PRD for the following feature.
 
   Operation Mode: reverse-engineer
@@ -127,8 +137,8 @@ prompt: |
 **subagent tool invocation**:
 ```
 agent: code-verifier
-description: "Verify PRD consistency"
-prompt: |
+label: "Verify PRD consistency"
+task: |
   Verify consistency between PRD and code implementation.
 
   doc_type: prd
@@ -152,8 +162,8 @@ prompt: |
 **subagent tool invocation**:
 ```
 agent: document-reviewer
-description: "Review PRD"
-prompt: |
+label: "Review PRD"
+task: |
   Review the following PRD considering code verification findings.
 
   doc_type: PRD
@@ -171,8 +181,8 @@ Pass `$STEP_3_OUTPUT` to document-reviewer as verification evidence, then apply 
 **subagent tool invocation**:
 ```
 agent: prd-creator
-description: "Revise PRD"
-prompt: |
+label: "Revise PRD"
+task: |
   Update PRD based on review feedback and code verification results.
 
   Operation Mode: update
@@ -233,8 +243,8 @@ In fullstack mode, partition each unit inventory by the owning path into backend
 **subagent tool invocation**:
 ```
 agent: technical-designer
-description: "Generate Design Doc"
-prompt: |
+label: "Generate Design Doc"
+task: |
   Create Design Doc for the following feature based on existing code.
 
   Operation Mode: reverse-engineer
@@ -260,8 +270,8 @@ For each unit, invoke 7a then 7b sequentially (7b depends on 7a output):
 **7a. Backend Design Doc**:
 ```
 agent: technical-designer
-description: "Generate backend Design Doc"
-prompt: |
+label: "Generate backend Design Doc"
+task: |
   Create a backend Design Doc for the following feature based on existing code.
 
   Operation Mode: reverse-engineer
@@ -284,8 +294,8 @@ prompt: |
 **7b. Frontend Design Doc**:
 ```
 agent: technical-designer-frontend
-description: "Generate frontend Design Doc"
-prompt: |
+label: "Generate frontend Design Doc"
+task: |
   Create a frontend Design Doc for the following feature based on existing code.
 
   Operation Mode: reverse-engineer
@@ -316,8 +326,8 @@ prompt: |
 **subagent tool invocation (per Design Doc)**:
 ```
 agent: code-verifier
-description: "Verify Design Doc consistency"
-prompt: |
+label: "Verify Design Doc consistency"
+task: |
   Verify consistency between Design Doc and code implementation.
 
   doc_type: design-doc
@@ -339,8 +349,8 @@ prompt: |
 **subagent tool invocation (per Design Doc)**:
 ```
 agent: document-reviewer
-description: "Review Design Doc"
-prompt: |
+label: "Review Design Doc"
+task: |
   Review the following Design Doc considering code verification findings.
 
   doc_type: DesignDoc
@@ -366,8 +376,8 @@ Pass `$STEP_8_OUTPUT` to document-reviewer as verification evidence, then apply 
 **subagent tool invocation (per Design Doc)**:
 ```
 agent: technical-designer (or technical-designer-frontend for frontend Design Docs)
-description: "Revise Design Doc"
-prompt: |
+label: "Revise Design Doc"
+task: |
   Update Design Doc based on review feedback and code verification results.
 
   Operation Mode: update

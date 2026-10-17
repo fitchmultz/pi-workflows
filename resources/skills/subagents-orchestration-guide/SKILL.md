@@ -111,8 +111,8 @@ File count supports the judgment but does not determine it. A qualifying durable
 ### Execution Method
 Each subagent invocation is a **fresh subagent tool** call, isolating each phase's context; a SendMessage resume reuses the prior agent's context and breaks that isolation. Each call uses:
 - `agent`: Subagent name (e.g., "task-executor")
-- `description`: Concise task description (3-5 words)
-- `prompt`: Values serialized in the active workflow's input contract
+- `label`: Concise task description (3-5 words)
+- `task`: Values serialized in the active workflow's input contract
 
 ### Orchestrator Execution Boundary
 

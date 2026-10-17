@@ -42,10 +42,32 @@ function agentNamespacePattern() {
 // Content translation: upstream-harness identifiers → pi-native equivalents.
 // Applied to every markdown body (skills and agent system prompts).
 // ---------------------------------------------------------------------------
+function translateSubagentFields(input) {
+  const fields = { description: "label", prompt: "task" };
+  // Only invocation blocks carry these aliases. Metadata and the specialist's
+  // nested input contract may legitimately contain description/prompt/model.
+  const s = input.replace(/```[^\n]*\n([\s\S]*?)```/g, (block, body) => {
+    const indent = body.match(/^([ \t]*)subagent_type\s*:/m)?.[1];
+    if (indent === undefined) return block;
+    return block.replace(new RegExp(`^(${indent})(description|prompt)(\\s*:)`, "gm"),
+      (_match, prefix, field, colon) => `${prefix}${fields[field]}${colon}`);
+  });
+  const namedInvocation = new RegExp(`\\b[Ii]nvoke\\b[^\\n]*(?:Agent tool|\\b(?:${agentNameAlternation})\\b)[^\\n]*:\\n`);
+  return s.split(/(\n[ \t]*\n)/).map((block) => {
+    const invocation = block.match(/^([ \t]*)- [^\n]*\bsubagent_type`?\s*:/m);
+    if (!invocation && !namedInvocation.test(block)) return block;
+    const indent = invocation?.[1] ?? block.match(/^([ \t]*)- `/m)?.[1];
+    if (indent === undefined) return block;
+    return block.replace(new RegExp(`^(${indent}- \`)(description|prompt)(\`?\\s*:)`, "gm"),
+      (_match, prefix, field, colon) => `${prefix}${fields[field]}${colon}`);
+  }).join("");
+}
+
 export function transformContent(input) {
-  let s = input;
+  const namespaces = agentNamespacePattern();
+  let s = translateSubagentFields(input);
   // Plugin namespacing does not exist for pi subagents: agents are flat names.
-  s = s.replace(agentNamespacePattern(), (m) => m.slice(m.lastIndexOf(":") + 1));
+  s = s.replace(namespaces, (m) => m.slice(m.lastIndexOf(":") + 1));
   // The upstream Agent tool parameter `subagent_type` is pi-subagents' `agent`.
   s = s.replace(/subagent_type/g, "agent");
   // The upstream Agent tool → pi's subagent tool.
@@ -67,7 +89,7 @@ export function transformContent(input) {
   s = s.replace(/todo_list and todo_list/g, "todo_list");
   // Skill invocation: pi loads skills via /skill:name (or the model reads SKILL.md).
   s = s.replace(/Execute Skill: ([a-z0-9-]+)/g, "Execute the $1 skill (/skill:$1)");
-  // Upstream file/shell tools → pi built-in tool names (pi edit covers MultiEdit).
+  // Upstream file/shell tools → Pi built-ins (edit covers MultiEdit).
   s = s.replace(/Edit\/Write\/MultiEdit/g, "edit/write");
   s = s.replace(/\bEdit\/Write\b/g, "edit/write");
   s = s.replace(/\bMultiEdit\b/g, "edit");
@@ -80,6 +102,22 @@ export function transformContent(input) {
   s = s.replace(/\bWebSearch\b/g, "agent_browser_web_search");
   s = s.replace(/\bWebFetch\b/g, "agent_browser");
   return s;
+}
+
+const RECIPE_PREFLIGHT = `## Pi recipe prerequisites
+
+This optional recipe requires a compatible multi-agent executor and extension tools; native Pi does not supply them. All four tools in step 1 are hard runtime prerequisites for every recipe, including recipes without external research. Before any recipe phase or artifact production:
+
+1. Inspect available tools and any advertised discovery catalog. Require \`subagent\` with \`agent\`, \`task\`, \`label\` and parallel \`tasks\` support, \`todo_list\`, \`ask_question\` and \`agent_browser_web_search\`. If advanced \`subagent\` is inactive, call \`load_subagent({advanced:true})\` only when that loader is available, then inspect its instructions before delegation. Pi Subagents 0.44.4+, pi-todo-list, pi-ask-question and pi-agent-browser-native provide these integrations; they are not dependencies of the standalone scripted runtime.
+2. Use \`subagent({action:"list"})\` to verify the named specialists required by this recipe resolve from its bundled profiles or intentional user/project overrides. Serialize each specialist's canonical input fields inside the \`task\` string; they are not top-level tool parameters. Use \`label\` for the short call description. If the executor, loader, profile or required tool is missing, excluded or incompatible, stop and report the exact prerequisite and phase. Do not imitate specialists inline, silently serialize parallel reviews, skip required steps or assume a loader is installed.
+3. Preserve every approval stop with an explicit user answer. If \`ask_question\` has no working TUI/RPC dialog, stop at that gate rather than assuming approval. Before required external research, verify the search provider is configured; when a public URL requires \`agent_browser\`, discover that tool too. A failed or unavailable provider blocks dependent research: report the verification limitation, never claim completed research. Pass this capability boundary to specialists that require those tools.
+
+The \`workflow\` tool and scripted \`agent()/pipeline()\` remain independently usable with native Pi tools and do not require these recipe integrations.
+
+`;
+
+function recipeContent(content) {
+  return transformContent(content).replace(/^(---\r?\n[\s\S]*?\r?\n---\r?\n)\s*/, `$1\n${RECIPE_PREFLIGHT}`);
 }
 
 // Recipe skills double as slash commands. In the upstream harness, /recipe-X expands the
@@ -96,7 +134,7 @@ function skillInvocationArgs(content) {
   return content.replaceAll("$ARGUMENTS", "the skill invocation arguments");
 }
 
-// Upstream tool names → pi built-in tool names (agent frontmatter `tools:`).
+// Upstream tool names → Pi built-ins or explicitly optional extension tools.
 const TOOL_MAP = new Map([
   ["Read", "read"],
   ["Write", "write"],
@@ -213,7 +251,7 @@ function generate() {
     if (dir.startsWith("recipe-")) {
       const skillFile = join(SRC_SKILLS, dir, "SKILL.md");
       if (existsSync(skillFile)) {
-        const translated = transformContent(readFileSync(skillFile, "utf8"));
+        const translated = recipeContent(readFileSync(skillFile, "utf8"));
         writeFileSync(join(DST_SKILLS, dir, "SKILL.md"), skillInvocationArgs(translated));
         writeFileSync(join(DST_PROMPTS, `${dir}.md`), toPromptTemplate(translated));
       }
@@ -282,7 +320,7 @@ function check() {
       continue;
     }
     // The template pi expands must equal the translated upstream skill body.
-    const expected = toPromptTemplate(transformContent(readFileSync(join(SRC_SKILLS, r, "SKILL.md"), "utf8")));
+    const expected = toPromptTemplate(recipeContent(readFileSync(join(SRC_SKILLS, r, "SKILL.md"), "utf8")));
     const actual = readFileSync(join(DST_PROMPTS, `${r}.md`), "utf8");
     if (actual !== expected) problems.push(`${r}.md: template body differs from translated skill`);
   }
@@ -293,6 +331,27 @@ function check() {
     problems.push(`agent count: upstream ${srcAgents.length} vs generated ${dstAgents.length}`);
   for (const d of srcSkillDirs) if (!dstSkillDirs.includes(d)) problems.push(`missing skill: ${d}`);
   for (const f of srcAgents) if (!dstAgents.includes(f)) problems.push(`missing agent: ${f}`);
+  const skillSources = [...walk(SRC_SKILLS)];
+  const sourceSkillFiles = skillSources.map(path => path.slice(SRC_SKILLS.length + 1)).sort();
+  const generatedSkillFiles = existsSync(DST_SKILLS) ? [...walk(DST_SKILLS)].map(path => path.slice(DST_SKILLS.length + 1)).sort() : [];
+  if (JSON.stringify(sourceSkillFiles) !== JSON.stringify(generatedSkillFiles)) problems.push("generated skill/support file inventory differs from canonical source");
+  for (const source of skillSources) {
+    const relative = source.slice(SRC_SKILLS.length + 1);
+    const target = join(DST_SKILLS, relative);
+    const input = readFileSync(source);
+    const expected = source.endsWith(".md")
+      ? Buffer.from(relative.split(sep)[0].startsWith("recipe-") && relative.endsWith(`${sep}SKILL.md`)
+        ? skillInvocationArgs(recipeContent(input.toString()))
+        : transformContent(input.toString()))
+      : input;
+    if (!existsSync(target) || !expected.equals(readFileSync(target))) problems.push(`${relative}: generated skill differs from canonical source`);
+  }
+  for (const file of srcAgents) {
+    const target = join(DST_AGENTS, file);
+    if (existsSync(target) && readFileSync(target, "utf8") !== transformAgent(readFileSync(join(SRC_AGENTS, file), "utf8"))) {
+      problems.push(`${file}: generated agent differs from canonical source`);
+    }
+  }
 
   const skillNames = new Set(dstSkillDirs);
   const agentNames = new Set(dstAgents.map((f) => f.replace(/\.md$/, "")));

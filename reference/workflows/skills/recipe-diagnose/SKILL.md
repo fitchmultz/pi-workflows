@@ -131,6 +131,7 @@ Review investigation output:
 
 **If quality insufficient**: Re-run investigator specifying missing items explicitly:
 ```
+subagent_type: investigator
 prompt: |
   Re-investigate with focus on the following gaps:
   - Missing: [unsatisfied Step 2 Quality Check items, copied as written]

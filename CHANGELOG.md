@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Keep scripted workflows independently installable; guard owned recipe prompt/skill invocations against missing, disabled or incompatible optional integrations before model work.
+- Recognize native current-branch instruction-group deferrals without widening selection. Report denied recipes in UI and stderr/nonzero print status without steering an in-flight turn; keep all four tools as hard recipe prerequisites.
+- Generate recipe capability/profile/approval checks and supported Subagents `task`/`label` calls without rewriting metadata or nested specialist inputs. Verify canonical skills, profiles and packaged copies for drift.
+- Qualify standalone packed installation, native worker fan-out, lazy/excluded integration paths and real specialist payload delivery with credential-free fixtures.
+
 ## [0.2.1] - 2026-10-04
 
 - Deliver the complete kit as public `@fitchmultz/pi-workflows`: generator-owned nonhidden runtime, all 31 skills, 25 specialist profiles and 17 recipe prompts. The unscoped npm package is unrelated.

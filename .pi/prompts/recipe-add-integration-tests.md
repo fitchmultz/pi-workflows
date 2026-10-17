@@ -2,6 +2,16 @@
 description: Add integration/E2E tests to existing codebase using Design Docs
 argument-hint: "[input]"
 ---
+## Pi recipe prerequisites
+
+This optional recipe requires a compatible multi-agent executor and extension tools; native Pi does not supply them. All four tools in step 1 are hard runtime prerequisites for every recipe, including recipes without external research. Before any recipe phase or artifact production:
+
+1. Inspect available tools and any advertised discovery catalog. Require `subagent` with `agent`, `task`, `label` and parallel `tasks` support, `todo_list`, `ask_question` and `agent_browser_web_search`. If advanced `subagent` is inactive, call `load_subagent({advanced:true})` only when that loader is available, then inspect its instructions before delegation. Pi Subagents 0.44.4+, pi-todo-list, pi-ask-question and pi-agent-browser-native provide these integrations; they are not dependencies of the standalone scripted runtime.
+2. Use `subagent({action:"list"})` to verify the named specialists required by this recipe resolve from its bundled profiles or intentional user/project overrides. Serialize each specialist's canonical input fields inside the `task` string; they are not top-level tool parameters. Use `label` for the short call description. If the executor, loader, profile or required tool is missing, excluded or incompatible, stop and report the exact prerequisite and phase. Do not imitate specialists inline, silently serialize parallel reviews, skip required steps or assume a loader is installed.
+3. Preserve every approval stop with an explicit user answer. If `ask_question` has no working TUI/RPC dialog, stop at that gate rather than assuming approval. Before required external research, verify the search provider is configured; when a public URL requires `agent_browser`, discover that tool too. A failed or unavailable provider blocks dependent research: report the verification limitation, never claim completed research. Pass this capability boundary to specialists that require those tools.
+
+The `workflow` tool and scripted `agent()/pipeline()` remain independently usable with native Pi tools and do not require these recipe integrations.
+
 Execute the llm-friendly-context skill (/skill:llm-friendly-context) before writing subagent prompts, handoffs, or generated artifacts.
 Execute the subagents-orchestration-guide skill (/skill:subagents-orchestration-guide) before making workflow decisions, invoking agents, or resolving findings.
 
@@ -52,7 +62,7 @@ Classify discovered documents by filename:
 
 Invoke acceptance-test-generator using subagent tool:
 - `agent`: "acceptance-test-generator"
-- `description`: "Generate test skeletons"
+- `label`: "Generate test skeletons"
 - `design_docs`: Existing backend, frontend, or single-layer Design Doc paths from Step 1
 - `ui_spec`: Existing UI Spec path when present
 - `confirmed_requirement_context`: Approved PRD path or unchanged Design Doc Requirement Convergence record
@@ -66,7 +76,7 @@ Follow subagents-orchestration-guide HC-06 for `value_input_required` and its un
 For each layer with generated skeletons, record the current HEAD as `diffBase`, then invoke the layer's task-executor:
 - Backend or single-layer → `agent`: "task-executor"
 - Frontend → `agent`: "task-executor-frontend"
-- `description`: "Implement integration tests"
+- `label`: "Implement integration tests"
 - `direct_scope`: Implement every test defined by the layer-specific generated skeletons
 - `governing_sources`: Layer-specific Design Doc, applicable UI Spec, and generated skeleton paths
 - `target_paths`: Generated test paths plus the existing setup or fixture paths explicitly identified before invocation
@@ -86,8 +96,8 @@ Apply this response gate after every task-executor invocation in Steps 3 and 5:
 
 Invoke integration-test-reviewer using subagent tool:
 - `agent`: "integration-test-reviewer"
-- `description`: "Review test quality"
-- `prompt`: "Review test quality. changedTestFiles: [confirmed changed integration/E2E test paths]. diffBase: [revision recorded before Step 3]. skeletonFiles: [layer-specific paths from Step 2 generatedFiles]. mutationEvidence: [Step 3 mutationEvidence]."
+- `label`: "Review test quality"
+- `task`: "Review test quality. changedTestFiles: [confirmed changed integration/E2E test paths]. diffBase: [revision recorded before Step 3]. skeletonFiles: [layer-specific paths from Step 2 generatedFiles]. mutationEvidence: [Step 3 mutationEvidence]."
 
 **Expected output**: `status` (approved/needs_revision/blocked), `testFiles`, `reviewBasis`, `qualityIssues`; correction re-review also returns `prior_feedback_reconciliation`
 
@@ -99,7 +109,7 @@ Check Step 4 result:
 - `status: needs_revision` → Pass Step 4 `qualityIssues` unchanged into the Review Resolution Gate; invoke task-executor for rerouted corrections, return to Step 4, and derive convergence from `prior_feedback_reconciliation`
 
 Invoke the same layer's task-executor:
-- `description`: "Fix review findings"
+- `label`: "Fix review findings"
 - Reuse Step 3 `direct_scope`, `governing_sources`, `target_paths`, and `observable_verification`
 - `correction_findings`: Complete reviewer finding objects verbatim, with only their orchestrator dispositions added
 
@@ -108,9 +118,9 @@ Invoke the same layer's task-executor:
 Invoke quality-fixer for the current layer:
 - Backend or single-layer → `agent`: "quality-fixer"
 - Frontend → `agent`: "quality-fixer-frontend"
-- `description`: "Final quality assurance"
+- `label`: "Final quality assurance"
 - Pass the latest executor's `mutationEvidence`.
-- `prompt`: "Run the repository-configured quality checks applicable to the test files added in this workflow and verify their intended observable behavior."
+- `task`: "Run the repository-configured quality checks applicable to the test files added in this workflow and verify their intended observable behavior."
 
 **Expected output**: `status` (`approved`, `stub_detected`, `verification_incomplete`, or `blocked`)
 

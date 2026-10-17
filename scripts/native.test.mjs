@@ -93,6 +93,16 @@ test("native project discovery, command dispatch, optional tool signal and selec
     assert.equal(requests.length, 1);
     assert.ok(JSON.stringify(requests[0].messages).includes("Return the local fixture answer"));
     assert.deepEqual(requests[0].tools.map(({ function: tool }) => tool.name).sort(), ["bash", "edit", "find", "grep", "ls", "read", "write"]);
+    await workflow.execute("native-fanout", { script: "export const meta = { name: 'native-fanout', description: 'standalone workers' }\nreturn await pipeline(['first', 'second'], task => agent(task, { schema: { type: 'object' } }))" }, undefined, undefined, session.extensionRunner.createContext());
+    const deadline = Date.now() + 15_000;
+    while (!session.messages.some(message => message.customType === "workflow-report" && message.details?.name === "native-fanout") && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    const fanout = session.messages.find(message => message.customType === "workflow-report" && message.details?.name === "native-fanout");
+    assert.ok(fanout, "The standalone workflow tool must complete both native workers");
+    assert.equal((JSON.stringify(fanout.content).match(/answer/g) ?? []).length, 2);
+    assert.equal(requests.length, 3);
+    for (const request of requests) assert.deepEqual(request.tools.map(({ function: tool }) => tool.name).sort(), ["bash", "edit", "find", "grep", "ls", "read", "write"]);
     finishReason = "length";
     assert.equal(await spawnWorker("Return the partial fixture", { cwd }), null, "Length-limited JSON is not a completed answer");
     assert.equal((await workflow.execute("invalid", { script: "not a workflow" }, undefined, undefined, session.extensionRunner.createContext())).isError, true);
