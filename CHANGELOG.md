@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Qualify the retained release package and its recipe receiver on the selected official and fork Pi hosts.
+
 ## [0.2.2] - 2026-10-31
 
 - Admit compatible tools with native namespace grouping, including browser search, while retaining exact callable-name, schema and availability checks.

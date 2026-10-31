@@ -1,0 +1,89 @@
+name: Workflows release qualification
+
+on:
+  workflow_call:
+    inputs:
+      automation-ref:
+        description: Exact reviewed shared automation revision
+        required: true
+        type: string
+      source-ref:
+        description: Exact candidate commit
+        required: true
+        type: string
+      release-source:
+        description: Original main commit represented by the candidate
+        required: true
+        type: string
+      official-version:
+        description: Official Pi version selected for the candidate
+        required: true
+        type: string
+      fork-ref:
+        description: Maintained Pi fork commit selected for the candidate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  packed-recipe:
+    name: Packed workflows on ${{ matrix.host }} Pi
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [official, fork]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source-ref }}
+          path: extension
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fitchmultz/.github
+          ref: ${{ inputs.automation-ref }}
+          path: automation
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          check-latest: true
+          package-manager-cache: false
+      - name: Use the reviewed npm
+        run: |
+          PM="$(node -p 'require("./extension/package.json").packageManager ?? require("./automation/package.json").packageManager')"
+          npm exec --yes --package="$PM" -- npm install --global "$PM"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-candidate-${{ inputs.source-ref }}
+          path: ${{ runner.temp }}/npm-candidate
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-fork-host-${{ inputs.source-ref }}
+          path: ${{ runner.temp }}/fork-package
+      - name: Exercise the retained package and real recipe receiver
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_REF: ${{ inputs.source-ref }}
+          RELEASE_SOURCE: ${{ inputs.release-source }}
+          OFFICIAL_VERSION: ${{ inputs.official-version }}
+          FORK_REF: ${{ inputs.fork-ref }}
+          HOST: ${{ matrix.host }}
+        run: |
+          node extension/scripts/release-candidate.mjs \
+            --artifact "$RUNNER_TEMP/npm-candidate" --fork-artifact "$RUNNER_TEMP/fork-package" \
+            --automation "$GITHUB_WORKSPACE/automation" --repository "$GITHUB_REPOSITORY" \
+            --source-ref "$SOURCE_REF" --release-source "$RELEASE_SOURCE" \
+            --official-version "$OFFICIAL_VERSION" --fork-ref "$FORK_REF" --host "$HOST" \
+            --output "$RUNNER_TEMP/workflows-evidence"
+      - name: Retain candidate and host identity
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: workflows-release-evidence-${{ matrix.host }}-${{ inputs.source-ref }}
+          path: ${{ runner.temp }}/workflows-evidence/report.json
+          if-no-files-found: warn
