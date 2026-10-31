@@ -2,6 +2,10 @@
 
 [Back to the README](../README.md)
 
+## Compatibility
+
+Pi 1.0.0 or later is the supported floor. Scripted workflows have no sibling prerequisite. Installed recipe profiles require Pi Subagents 0.44.4 or later and its `subagents.agents` manifest; a compatible `subagent` executor must support `agent`, `task`, `label` and `tasks`.
+
 ## Git installation and migration
 
 The Git package source remains supported:
@@ -19,7 +23,7 @@ pi remove git:github.com/fitchmultz/pi-workflows
 pi install npm:@fitchmultz/pi-workflows
 ```
 
-If the Git package was installed with `--local`, also use `--local` when removing it. Preserve project scripts and other settings. Pi 1.0.0+ is the supported floor. Scripted workflows have no sibling prerequisite; the optional recipe integrations are listed in the README.
+If the Git package was installed with `--local`, also use `--local` when removing it. Preserve project scripts and other settings. The optional recipe integrations are listed in the README.
 
 ## Repository layout
 
@@ -40,7 +44,7 @@ Edit recipe sources under `reference/workflows` and their translation in `script
 
 The generator preserves the project kit and produces the public package layout. Only source-owned runtime, skills, prompts and profiles ship. Private `.pi` scripts, size/Always state and user data never enter the tarball. README diagram assets stay in `.github/readme/`, outside the package's `files` list.
 
-The explicit Pi manifest loads the public runtime, skills and recipe prompts. Subagents 0.44.4+ reads the separate `subagents.agents` manifest through configured installed-package discovery. Profiles are read-only fallbacks below user and trusted-project overrides. No copying into user directories or live activation is needed.
+The explicit Pi manifest loads the public runtime, skills and recipe prompts. Pi Subagents reads the separate `subagents.agents` manifest through configured installed-package discovery. Profiles are read-only fallbacks below user and trusted-project overrides. No copying into user directories or live activation is needed.
 
 ## Recipe admission boundary
 
@@ -61,7 +65,7 @@ npm pack --dry-run --ignore-scripts
 
 Inspect the diff after regeneration. `npm run check` verifies generated assets without rewriting them. `check:compat` runs that check, type-checks the project extension, and runs the Node tests, native project/packed-package discovery and a real child-CLI test.
 
-The packed consumer first installs workflows alone and exercises its native runtime and missing-recipe path, then adds the documented scoped Subagents integration. Offline qualification can supply a reviewed tarball with `PI_WORKFLOWS_SUBAGENTS_TARBALL=/absolute/package.tgz`. `PI_WORKFLOWS_TARBALL=/absolute/workflows.tgz` reuses one exact artifact across host checks.
+The packed consumer first installs workflows alone and exercises its native runtime and missing-recipe path, then adds the minimum supported Subagents release. Without an override, it also checks an unpinned native Git install and its prepare step separately. Offline qualification can supply a reviewed minimum-version tarball with `PI_WORKFLOWS_SUBAGENTS_TARBALL=/absolute/package.tgz`. `PI_WORKFLOWS_TARBALL=/absolute/workflows.tgz` reuses one exact artifact across host checks.
 
 The supported/development baseline is official Pi 1.0.0, its exact eight-package 1.0 cohort, TypeBox 1.3.27 and physical Node 24.21.0 used for qualification. The shared compatibility runner installs the selected official or fork cohort in this checkout's `node_modules`. Tests verify SDK/types/manifest-bin identity rather than finding `pi` on PATH. This development baseline does not raise the Node/platform floor.
 

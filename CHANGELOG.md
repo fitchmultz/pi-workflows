@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [0.2.2] - 2026-10-31
 
 - Admit compatible tools with native namespace grouping, including browser search, while retaining exact callable-name, schema and availability checks.
 - Keep scripted workflows independently installable; guard owned recipe prompt/skill invocations against missing, disabled or incompatible optional integrations before model work.

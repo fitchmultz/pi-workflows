@@ -6,7 +6,7 @@ pi-workflows adds development recipes and scripted workflows to [Pi](https://git
 
 ## Install and start
 
-pi-workflows requires Pi 1.0.0 or later. The scripted `workflow` / `agent()` / `pipeline()` runtime works independently, without other extensions.
+pi-workflows requires Pi; see the [compatibility requirements](https://github.com/fitchmultz/pi-workflows/blob/main/docs/development.md#compatibility). The scripted `workflow` / `agent()` / `pipeline()` runtime works independently, without other extensions.
 
 Run these commands from your project directory:
 
@@ -25,7 +25,7 @@ Then run this command in Pi:
 
 ### Optional recipe integrations
 
-Recipes inherently use isolated specialists, parallel reviews, progress tools and explicit approval gates. They require [Pi Subagents](https://github.com/fitchmultz/pi-subagents) 0.44.4+ (or a compatible `subagent` executor with `agent`/`task`/`label`/`tasks`), [`todo_list`](https://github.com/fitchmultz/pi-todo-list), [`ask_question`](https://github.com/fitchmultz/pi-ask-question), and [`agent_browser_web_search`](https://github.com/fitchmultz/pi-agent-browser-native#optional-search-and-settings). All four are hard runtime prerequisites for every recipe, even recipes without external research. These are extension integrations, not native Pi tools.
+Recipes inherently use isolated specialists, parallel reviews, progress tools and explicit approval gates. They require a [supported Pi Subagents version](https://github.com/fitchmultz/pi-workflows/blob/main/docs/development.md#compatibility) (or a compatible `subagent` executor with `agent`/`task`/`label`/`tasks`), [`todo_list`](https://github.com/fitchmultz/pi-todo-list), [`ask_question`](https://github.com/fitchmultz/pi-ask-question), and [`agent_browser_web_search`](https://github.com/fitchmultz/pi-agent-browser-native#optional-search-and-settings). All four are hard runtime prerequisites for every recipe, even recipes without external research. These are extension integrations, not native Pi tools.
 
 ```bash
 pi install npm:@fitchmultz/pi-subagents
@@ -96,9 +96,9 @@ The runtime permits at most 16 workers at once and 1,000 calls per run. Size gui
 
 ## More detail
 
-Read [Scripted workflows](docs/scripted-workflows.md) for script examples, worker results and resume behavior.
+Read [Scripted workflows](https://github.com/fitchmultz/pi-workflows/blob/main/docs/scripted-workflows.md) for script examples, worker results and resume behavior.
 
-Read [Development](docs/development.md) for Git installs, the repository layout and build commands. [Pi contracts and qualification](docs/pi-1.0.md) documents exact host versions and compatibility checks.
+Read [Development](https://github.com/fitchmultz/pi-workflows/blob/main/docs/development.md) for compatibility requirements, Git installs, the repository layout, build commands and host qualification.
 
 Read the [changelog](CHANGELOG.md) for changes. Report problems or suggestions in [issues](https://github.com/fitchmultz/pi-workflows/issues).
 

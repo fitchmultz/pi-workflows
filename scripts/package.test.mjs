@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { createAgentSession, DefaultPackageManager, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const subagentsRef = "c98eeed01aabe6b833f5235d5bf2b074b5b41ff7";
+const minimumSubagentsVersion = "0.44.4";
 const hostRoot = fileURLToPath(new URL("..", import.meta.resolve("@earendil-works/pi-coding-agent")));
 const host = JSON.parse(readFileSync(join(hostRoot, "package.json"), "utf8"));
 const cli = resolve(hostRoot, host.bin.pi);
@@ -35,8 +35,8 @@ test("packed workflows install standalone, reject unavailable recipes, then comp
   for (const key of Object.keys(inherited)) delete env[key];
   env.PI_SUBAGENT_TEMP_ROOT = join(temp, "pi-subagents-runs");
   const saved = Object.fromEntries(["HOME", "USERPROFILE", "PI_CODING_AGENT_DIR", "PI_PACKAGE_DIR", "PI_SUBAGENT_TEMP_ROOT", "PATH"].map(key => [key, process.env[key]]));
-  const run = (command, args, workdir = cwd) => {
-    const result = spawnSync(command, args, { cwd: workdir, env, encoding: "utf8", timeout: 60_000 });
+  const run = (command, args, workdir = cwd, commandEnv = env) => {
+    const result = spawnSync(command, args, { cwd: workdir, env: commandEnv, encoding: "utf8", timeout: 60_000 });
     if (result.error) throw result.error;
     assert.equal(result.status, 0, `${command} ${args.join(" ")}\n${result.stdout}\n${result.stderr}`);
     return result.stdout;
@@ -49,11 +49,12 @@ test("packed workflows install standalone, reject unavailable recipes, then comp
       : join(packs, Object.values(JSON.parse(run("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", packs], root)))[0].filename);
     const manifest = JSON.parse(run("tar", ["-xOf", tarball, "package/package.json"]));
     assert.equal(manifest.name, "@fitchmultz/pi-workflows");
+    assert.equal(manifest.version, JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version);
     assert.equal(run("tar", ["-tzf", tarball]).trim().split("\n").some(path => path.split("/").includes(".pi")), false, "Project-private state must never be shipped");
     const artifactSha256 = createHash("sha256").update(readFileSync(tarball)).digest("hex");
     run(process.execPath, [cli, "install", "--approve", `npm:@fitchmultz/pi-workflows@file:${tarball}`]);
     const installed = join(agentDir, "npm", "node_modules", "@fitchmultz", "pi-workflows");
-    assert.equal(JSON.parse(readFileSync(join(installed, "package.json"), "utf8")).version, "0.2.1");
+    assert.equal(JSON.parse(readFileSync(join(installed, "package.json"), "utf8")).version, manifest.version);
     assert.equal(existsSync(join(cwd, ".pi")), false, "Installed assets must not require copying a project kit");
     for (const key of Object.keys(inherited)) delete process.env[key];
     Object.assign(process.env, Object.fromEntries(Object.keys(saved).map(key => [key, env[key]])));
@@ -133,20 +134,32 @@ test("packed workflows install standalone, reject unavailable recipes, then comp
     session = undefined;
     t.diagnostic("Standalone packed install: one extension, 17 prompts, 31 skills; missing recipe integrations stopped before inference; native pipeline completed.");
 
-    const subagents = process.env.PI_WORKFLOWS_SUBAGENTS_TARBALL
-      ? `npm:@fitchmultz/pi-subagents@file:${resolve(process.env.PI_WORKFLOWS_SUBAGENTS_TARBALL)}`
-      : `git:github.com/fitchmultz/pi-subagents@${subagentsRef}`;
+    const subagentsTarball = process.env.PI_WORKFLOWS_SUBAGENTS_TARBALL
+      ? resolve(process.env.PI_WORKFLOWS_SUBAGENTS_TARBALL)
+      : join(packs, Object.values(JSON.parse(run("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", packs,
+        `@fitchmultz/pi-subagents@${minimumSubagentsVersion}`])))[0].filename);
+    const subagents = `npm:@fitchmultz/pi-subagents@file:${subagentsTarball}`;
     run(process.execPath, [cli, "install", "--approve", subagents]);
     const prerequisite = new DefaultPackageManager({ cwd, agentDir, settingsManager: SettingsManager.create(cwd, agentDir, { projectTrusted: true }) }).getInstalledPath(subagents, "user");
     assert.ok(prerequisite, "The native CLI must install the actual Subagents prerequisite");
     const prerequisiteManifest = JSON.parse(readFileSync(join(prerequisite, "package.json"), "utf8"));
     assert.equal(prerequisiteManifest.name, "@fitchmultz/pi-subagents");
-    assert.equal(prerequisiteManifest.version, "0.44.4");
+    assert.equal(prerequisiteManifest.version, minimumSubagentsVersion);
     for (const entry of ["dist/extension/index.js", "dist/pi-intercom/index.js"]) assert.ok(existsSync(join(prerequisite, entry)), entry);
     if (!process.env.PI_WORKFLOWS_SUBAGENTS_TARBALL) {
-      assert.equal(run("git", ["rev-parse", "HEAD"], prerequisite).trim(), subagentsRef);
-      assert.equal(run("git", ["ls-files", "dist"], prerequisite).trim(), "", "The compiled entries must come from native Git prepare, not tracked build output");
-      assert.equal(existsSync(join(prerequisite, "node_modules", "typescript")), false, "Native Git prepare must not retain its compiler");
+      const gitAgentDir = join(temp, "git-agent");
+      mkdirSync(gitAgentDir);
+      const gitSource = "git:github.com/fitchmultz/pi-subagents";
+      run(process.execPath, [cli, "install", "--approve", gitSource], cwd, { ...env, PI_CODING_AGENT_DIR: gitAgentDir });
+      const gitPackage = new DefaultPackageManager({ cwd, agentDir: gitAgentDir, settingsManager: SettingsManager.create(cwd, gitAgentDir, { projectTrusted: true }) }).getInstalledPath(gitSource, "user");
+      assert.ok(gitPackage, "The native CLI must install Subagents from Git");
+      const gitManifest = JSON.parse(readFileSync(join(gitPackage, "package.json"), "utf8"));
+      assert.equal(gitManifest.name, "@fitchmultz/pi-subagents");
+      assert.ok(gitManifest.pi.extensions.length > 0, "The Git package must advertise extension entries");
+      for (const entry of gitManifest.pi.extensions) assert.ok(existsSync(join(gitPackage, entry)), entry);
+      assert.equal(run("git", ["ls-files", "dist"], gitPackage).trim(), "", "The compiled entries must come from native Git prepare, not tracked build output");
+      assert.equal(existsSync(join(gitPackage, "node_modules", "typescript")), false, "Native Git prepare must not retain its compiler");
+      t.diagnostic(`Native Git prepare: ${gitManifest.name}@${gitManifest.version}, commit ${run("git", ["rev-parse", "HEAD"], gitPackage).trim()}.`);
     }
     const settingsManager = SettingsManager.create(cwd, agentDir, { projectTrusted: true });
     const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager, projectTrusted: true, noContextFiles: true });
