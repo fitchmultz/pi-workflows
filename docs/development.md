@@ -67,6 +67,8 @@ Inspect the diff after regeneration. `npm run check` verifies generated assets w
 
 The packed consumer first installs workflows alone and exercises its native runtime and missing-recipe path, then adds the minimum supported Subagents release. Without an override, it also checks an unpinned native Git install and its prepare step separately. Offline qualification can supply a reviewed minimum-version tarball with `PI_WORKFLOWS_SUBAGENTS_TARBALL=/absolute/package.tgz`. `PI_WORKFLOWS_TARBALL=/absolute/workflows.tgz` reuses one exact artifact across host checks.
 
+The callable [release qualification workflow](../.github/workflows/release-qualification.yml) runs that packed consumer on the shared preparation's retained tarball and exact official/fork host graphs. It verifies the host graph and candidate hash before the existing test, then rechecks the candidate hash; it does not replace the full compatibility checks.
+
 The supported/development baseline is official Pi 1.0.0, its exact eight-package 1.0 cohort, TypeBox 1.3.27 and physical Node 24.21.0 used for qualification. The shared compatibility runner installs the selected official or fork cohort in this checkout's `node_modules`. Tests verify SDK/types/manifest-bin identity rather than finding `pi` on PATH. This development baseline does not raise the Node/platform floor.
 
 The child runs JSON print mode against a credential-free loopback provider, proving completed/length-limited results and awaited shutdown without paid calls. Tests select the exact `PI_PACKAGE_DIR`/SDK/manifest-bin identity in an isolated environment instead of an inherited live fork override.
