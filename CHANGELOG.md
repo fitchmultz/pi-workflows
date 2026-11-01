@@ -2,7 +2,20 @@
 
 ## Unreleased
 
+## 0.2.3 - 2026-11-01
+
+<!-- npm-release:unreleased:start -->
 - Qualify the retained release package and its recipe receiver on the selected official and fork Pi hosts.
+<!-- npm-release:unreleased:end -->
+
+- Automate qualified npm patch releases (#24) ([42aa9ef](https://github.com/fitchmultz/pi-workflows/commit/42aa9ef702e8e9bf75fa6b25081d1bd0dfc6944d))
+
+### What's Changed
+* Qualify the retained workflows release package by @fitchmultz in https://github.com/fitchmultz/pi-workflows/pull/23
+* Automate qualified npm patch releases by @fitchmultz in https://github.com/fitchmultz/pi-workflows/pull/24
+
+
+**Full Changelog**: https://github.com/fitchmultz/pi-workflows/compare/v0.2.2...v0.2.3
 
 ## [0.2.2] - 2026-10-31
 
