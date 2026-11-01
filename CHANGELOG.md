@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.2.4 - 2026-11-01
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Use direct Flash for automatic release remediation (#26) ([931be87](https://github.com/fitchmultz/pi-workflows/commit/931be87eb5468cd38ca0de2874ea2889af19468d))
+
+### What's Changed
+* Use direct Flash for necessary release remediation by @fitchmultz in https://github.com/fitchmultz/pi-workflows/pull/26
+
+
+**Full Changelog**: https://github.com/fitchmultz/pi-workflows/compare/v0.2.3...v0.2.4
+
 ## 0.2.3 - 2026-11-01
 
 <!-- npm-release:unreleased:start -->
