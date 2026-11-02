@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.2.9 - 2026-11-02
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Recheck unreported Cursor reviews in automatic releases (#36) ([2b1dd2c](https://github.com/fitchmultz/pi-workflows/commit/2b1dd2c827d50fc173a1155a69a8f6fd9f10e738))
+
+### What's Changed
+
+- Recheck unreported Cursor reviews in automatic releases by @fitchmultz in https://github.com/fitchmultz/pi-workflows/pull/36
+
+**Full Changelog**: https://github.com/fitchmultz/pi-workflows/compare/v0.2.8...v0.2.9
+
 ## 0.2.8 - 2026-11-02
 
 <!-- npm-release:unreleased:start -->
