@@ -1,19 +1,13 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import type {
   ExtensionAPI,
   ExtensionCommandContext,
   ExtensionContext,
+  SlashCommandInfo,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import {
-  firstUnfinished,
-  parseMeta,
-  runWorkflow,
-  type RunResult,
-  type WorkflowMeta,
-} from "./runtime.ts";
+import { firstUnfinished, parseMeta, runWorkflow, type RunResult } from "./runtime.ts";
 import { spawnWorker } from "./spawn.ts";
 import {
   decorateInput,
@@ -23,58 +17,19 @@ import {
   saveSize,
   SIZE_HINT,
   SIZES,
+  type Size,
 } from "./polish.ts";
 import { approvalCard, KeywordEditor } from "./ui.ts";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const piDir = join(here, "..", "..");
-const skillsDir = join(piDir, "skills");
-const agentsDir = join(piDir, "agents");
-const promptsDir = join(piDir, "prompts");
-const RECIPE_TOOLS = ["subagent", "todo_list", "ask_question", "agent_browser_web_search"];
-
-function unavailableRecipeTools(pi: ExtensionAPI, ctx: ExtensionContext): string[] {
-  const tools = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
-  const active = new Set(pi.getActiveTools());
-  let groupDeferred = new Set<string>();
-  if (active.has("discover_tools")) {
-    // ponytail: input precedes native deferral retirement; recipe preflight is the final capability check.
-    for (const entry of ctx.sessionManager.getBranch()) {
-      if (entry.type !== "custom" || entry.customType !== "pi:instruction-groups") continue;
-      const data = entry.data;
-      if (data && typeof data === "object" && "inactive" in data && Array.isArray(data.inactive)) {
-        groupDeferred = new Set(
-          data.inactive.filter((name): name is string => typeof name === "string"),
-        );
-      }
-    }
-  }
-  const available = (name: string): boolean => {
-    const tool = tools.get(name);
-    return (
-      !!tool &&
-      tool.exposure !== "hidden" &&
-      (active.has(name) ||
-        groupDeferred.has(name) ||
-        ((active.has("codemode") || active.has("tool_search")) &&
-          (tool.exposure === "codemode" || tool.exposure === "deferred")))
-    );
-  };
-  return RECIPE_TOOLS.filter((name) => {
-    if (name !== "subagent") return !available(name);
-    const tool = tools.get(name);
-    const schema = tool?.parameters;
-    const properties = schema && "properties" in schema ? schema.properties : undefined;
-    return (
-      !tool ||
-      tool.exposure === "hidden" ||
-      !properties ||
-      typeof properties !== "object" ||
-      !["agent", "task", "label", "tasks"].every((key) => key in properties) ||
-      (!available(name) && !available("load_subagent"))
-    );
-  });
-}
+import {
+  agentsDir,
+  discoverSaved,
+  listDirNames,
+  promptsDir,
+  repoRoot,
+  saveScript,
+  skillsDir,
+} from "./storage.ts";
+import { RECIPE_TOOLS, unavailableRecipeTools } from "./recipes.ts";
 
 const DEEP_RESEARCH = `export const meta = {
   name: 'deep-research',
@@ -112,7 +67,7 @@ type Run = {
   script: string;
   args?: unknown;
   status: RunStatus;
-  error?: string;
+  error?: string | undefined;
   value?: unknown;
   started: number[];
   cache: unknown[];
@@ -122,47 +77,6 @@ type Run = {
 };
 
 let seq = 0;
-
-function listDirNames(dir: string, kind: "dir" | "file"): string[] {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((e) => (kind === "dir" ? e.isDirectory() : e.isFile() && e.name.endsWith(".md")))
-    .map((e) => (kind === "dir" ? e.name : e.name.replace(/\.md$/, "")))
-    .sort();
-}
-
-function walkWorkflowDirs(cwd: string): string[] {
-  const dirs: string[] = [];
-  let dir = cwd;
-  for (;;) {
-    const candidate = join(dir, ".pi", "workflows");
-    if (existsSync(candidate)) dirs.push(candidate);
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    if (existsSync(join(dir, ".git"))) break;
-    dir = parent;
-  }
-  return dirs;
-}
-
-function discoverSaved(
-  cwd: string,
-): Map<string, { meta: WorkflowMeta; source: string; path: string }> {
-  const found = new Map<string, { meta: WorkflowMeta; source: string; path: string }>();
-  for (const dir of walkWorkflowDirs(cwd).reverse()) {
-    for (const file of readdirSync(dir).filter((f) => f.endsWith(".js"))) {
-      const path = join(dir, file);
-      const source = readFileSync(path, "utf8");
-      try {
-        const meta = parseMeta(source);
-        found.set(meta.name, { meta, source, path });
-      } catch {
-        // skip invalid scripts
-      }
-    }
-  }
-  return found;
-}
 
 function newId(): string {
   seq += 1;
@@ -175,34 +89,41 @@ function cacheFrom(result: RunResult): { cache: unknown[]; replayThrough: number
   const replayThrough = cut === undefined ? result.started.length - 1 : cut - 1;
   const cache: unknown[] = [];
   for (const id of result.started) {
-    if (id > replayThrough) break;
+    if (id > replayThrough) {
+      break;
+    }
     cache[id] = result.finished.get(id);
   }
   return { cache, replayThrough };
 }
 
+type StartRunOptions = {
+  script: string;
+  args: unknown;
+  resume?: Run;
+};
+
 function startRun(
   pi: ExtensionAPI,
   ctx: ExtensionContext,
-  script: string,
-  args: unknown,
   runs: Map<string, Run>,
-  resume?: Run,
+  opts: StartRunOptions,
 ): Run {
-  const meta = parseMeta(script);
+  const meta = parseMeta(opts.script);
+  const resume = opts.resume;
   const run: Run = resume ?? {
     id: newId(),
     name: meta.name,
     description: meta.description,
-    script,
-    args,
+    script: opts.script,
+    args: opts.args,
     status: "running",
     started: [],
     cache: [],
     replayThrough: -1,
     controller: new AbortController(),
   };
-  if (resume) {
+  if (resume !== undefined) {
     run.status = "running";
     run.controller = new AbortController();
     run.error = undefined;
@@ -214,18 +135,22 @@ function startRun(
     const large = startedCount > 25 ? " large" : "";
     const line = `${run.name} ${run.status} ${done} cached, ${startedCount} started${large}`;
     ctx.ui.setStatus("workflows", line);
-    if (ctx.mode === "tui") ctx.ui.setWidget("workflows", [line]);
+    if (ctx.mode === "tui") {
+      ctx.ui.setWidget("workflows", [line]);
+    }
   };
   run.task = (async () => {
-    const result = await runWorkflow(script, {
-      args,
+    const result = await runWorkflow(opts.script, {
+      args: opts.args,
       signal: run.controller.signal,
       replayThrough: run.replayThrough,
       cache: run.cache,
-      agent: (prompt, opts) =>
-        spawnWorker(prompt, { ...opts, cwd: ctx.cwd, signal: run.controller.signal }),
+      agent: (prompt, agentOpts) =>
+        spawnWorker(prompt, { ...agentOpts, cwd: ctx.cwd, signal: run.controller.signal }),
       onEvent: (event) => {
-        if (event.type === "agent_start") startedCount += 1;
+        if (event.type === "agent_start") {
+          startedCount += 1;
+        }
         paint();
       },
     });
@@ -238,7 +163,7 @@ function startRun(
     } else if (result.ok) {
       run.status = "done";
       run.value = result.value;
-      await pi.sendMessage({
+      pi.sendMessage({
         customType: "workflow-report",
         content: [{ type: "text", text: formatReport(run) }],
         display: true,
@@ -259,106 +184,166 @@ function startRun(
 }
 
 function formatReport(run: Run): string {
-  if (run.status === "failed")
+  if (run.status === "failed") {
     return `Workflow ${run.name} failed: ${run.error ?? "unknown error"}`;
-  if (run.status !== "done") return `Workflow ${run.name} ${run.status}.`;
+  }
+  if (run.status !== "done") {
+    return `Workflow ${run.name} ${run.status}.`;
+  }
+  if (run.value === undefined) {
+    return `Workflow ${run.name} finished.\n\n`;
+  }
   const body = typeof run.value === "string" ? run.value : JSON.stringify(run.value, null, 2);
-  return `Workflow ${run.name} finished.\n\n${body ?? ""}`;
+  return `Workflow ${run.name} finished.\n\n${body}`;
 }
 
-function repoRoot(cwd: string): string {
-  let dir = cwd;
-  let root = cwd;
-  for (;;) {
-    if (existsSync(join(dir, ".git"))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return root;
-    dir = parent;
+/** A recipe command this package itself owns (never another package's or a user override). */
+function ownedRecipe(pi: ExtensionAPI, recipe: string): SlashCommandInfo | undefined {
+  const command = pi.getCommands().find((info) => info.name === recipe);
+  if (command === undefined) {
+    return undefined;
+  }
+  let ownedPath: string | undefined;
+  if (command.source === "skill") {
+    ownedPath = join(skillsDir, recipe, "SKILL.md");
+  } else if (command.source === "prompt") {
+    ownedPath = join(promptsDir, `${recipe}.md`);
+  }
+  return ownedPath !== undefined && command.sourceInfo.path === ownedPath ? command : undefined;
+}
+
+function denyRecipe(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  recipe: string,
+  missing: string[],
+): void {
+  const text = `Recipe ${recipe} not started. Missing, disabled or incompatible tools: ${missing.join(", ")}. Recipes require a compatible multi-agent executor (Pi Subagents 0.44.4+ with agent/task/label/tasks), pi-todo-list, pi-ask-question and pi-agent-browser-native search. Install or enable these integrations, then retry. Do not replace specialists or approval gates with inline work. Standalone scripted workflows remain available through the workflow tool.`;
+  pi.sendMessage(
+    {
+      customType: "recipe-unavailable",
+      content: [{ type: "text", text }],
+      display: true,
+      details: { recipe, missing },
+    },
+    { triggerTurn: false },
+  );
+  if (ctx.hasUI) {
+    ctx.ui.notify(text, "error");
+  } else {
+    console.error(text);
+    // ponytail: SDK and print share exitCode; continuing embedders must consume the diagnostic and reset it.
+    process.exitCode = 1;
   }
 }
 
-function saveScript(cwd: string, script: string): string {
-  const meta = parseMeta(script);
-  const dir = walkWorkflowDirs(cwd)[0] ?? join(repoRoot(cwd), ".pi", "workflows");
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, `${meta.name}.js`);
-  writeFileSync(path, script.endsWith("\n") ? script : `${script}\n`);
-  return path;
+function flagSize(pi: ExtensionAPI): string | undefined {
+  const value = pi.getFlag("workflow-size");
+  return typeof value === "string" ? value : undefined;
 }
 
-export default function (pi: ExtensionAPI) {
-  const runs = new Map<string, Run>();
-  pi.registerFlag("workflow-size", {
-    description: "Workflow size guideline: small, medium, large, unrestricted",
-    type: "string",
+function sizeFor(pi: ExtensionAPI, cwd: string): Size {
+  return loadSize(repoRoot(cwd), flagSize(pi));
+}
+
+async function askToRun(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  script: string,
+): Promise<{ ok: boolean; script: string }> {
+  const meta = parseMeta(script);
+  return approvalCard(ctx, {
+    name: meta.name,
+    description: meta.description,
+    script,
+    size: sizeFor(pi, ctx.cwd),
+    root: repoRoot(ctx.cwd),
   });
+}
 
-  const flagSize = () => {
-    const value = pi.getFlag("workflow-size");
-    return typeof value === "string" ? value : undefined;
-  };
-  const sizeFor = (cwd: string) => loadSize(repoRoot(cwd), flagSize());
+function listOf(items: string[]): string {
+  return items.length > 0 ? items.join(", ") : "none";
+}
 
-  const askToRun = async (ctx: ExtensionContext, script: string) => {
-    const meta = parseMeta(script);
-    return approvalCard(ctx, {
-      name: meta.name,
-      description: meta.description,
-      script,
-      size: sizeFor(ctx.cwd),
-      root: repoRoot(ctx.cwd),
-    });
-  };
+function workflowsReport(pi: ExtensionAPI, ctx: ExtensionContext, runs: Map<string, Run>): string {
+  const skills = existsSync(skillsDir)
+    ? readdirSync(skillsDir).filter((d) => existsSync(join(skillsDir, d, "SKILL.md")))
+    : [];
+  const agents = listDirNames(agentsDir, "file");
+  const recipes = listDirNames(promptsDir, "file");
+  const missing = unavailableRecipeTools(pi, ctx);
+  const saved = [...discoverSaved(ctx.cwd).values()].map((s) => s.meta.name);
+  const size = sizeFor(pi, ctx.cwd);
+  const runLines = [...runs.values()].map((r) => `${r.status} ${r.name} (${r.id})`);
+  return [
+    `Recipes (${recipes.length}): ${listOf(recipes.map((r) => `/${r}`))}`,
+    `Skills (${skills.length}): ${listOf(skills)}`,
+    `Agents (${agents.length}): ${listOf(agents)}`,
+    `Saved scripts: ${listOf(saved.map((n) => `/${n}`))}`,
+    `Size: ${size} (${SIZE_HINT[size]}) — /workflow-size to change`,
+    missing.length > 0
+      ? `Missing, disabled or incompatible recipe tools: ${missing.join(", ")}. Scripted workflows remain available.`
+      : `Recipe tools registered: ${RECIPE_TOOLS.join(", ")}; recipes verify profiles and provider readiness before use.`,
+    runLines.length > 0 ? `Runs:\n${runLines.join("\n")}` : "Runs: none",
+  ].join("\n");
+}
 
+type RunEnv = {
+  pi: ExtensionAPI;
+  ctx: ExtensionContext;
+  runs: Map<string, Run>;
+};
+
+async function applyRunAction(env: RunEnv, run: Run, action: string | undefined): Promise<void> {
+  if (action === "View") {
+    env.ctx.ui.notify(formatReport(run), "info");
+  }
+  if (action === "Pause" || action === "Stop") {
+    run.controller.abort();
+  }
+  if (action === "Resume" && run.status === "paused") {
+    startRun(env.pi, env.ctx, env.runs, { script: run.script, args: run.args, resume: run });
+  }
+  if (action === "Save") {
+    env.ctx.ui.notify(`Saved ${saveScript(env.ctx.cwd, run.script)}`, "info");
+  }
+}
+
+async function manageRuns(env: RunEnv): Promise<void> {
+  const labels = [...env.runs.values()].map((r) => `${r.status} ${r.name} (${r.id})`);
+  const picked = await env.ctx.ui.select("Workflow runs", labels.length > 0 ? labels : ["(none)"]);
+  if (picked === undefined || picked === "(none)") {
+    return;
+  }
+  const id = picked.slice(picked.lastIndexOf("(") + 1, -1);
+  const run = env.runs.get(id);
+  if (run === undefined) {
+    return;
+  }
+  const action = await env.ctx.ui.select(run.name, ["View", "Pause", "Resume", "Stop", "Save"]);
+  await applyRunAction(env, run, action);
+}
+
+function registerWorkflows(pi: ExtensionAPI, runs: Map<string, Run>): void {
   pi.registerCommand("workflows", {
     description: "List recipes, saved scripts, and manage runs",
     handler: async (args, ctx) => {
-      const skills = existsSync(skillsDir)
-        ? readdirSync(skillsDir).filter((d) => existsSync(join(skillsDir, d, "SKILL.md")))
-        : [];
-      const agents = listDirNames(agentsDir, "file");
-      const recipes = listDirNames(promptsDir, "file");
-      const missing = unavailableRecipeTools(pi, ctx);
-      const saved = [...discoverSaved(ctx.cwd).values()].map((s) => s.meta.name);
-      const size = sizeFor(ctx.cwd);
-      const runLines = [...runs.values()].map((r) => `${r.status} ${r.name} (${r.id})`);
-      const header = [
-        `Recipes (${recipes.length}): ${recipes.map((r) => `/${r}`).join(", ") || "none"}`,
-        `Skills (${skills.length}): ${skills.join(", ") || "none"}`,
-        `Agents (${agents.length}): ${agents.join(", ") || "none"}`,
-        `Saved scripts: ${saved.map((n) => `/${n}`).join(", ") || "none"}`,
-        `Size: ${size} (${SIZE_HINT[size]}) — /workflow-size to change`,
-        missing.length
-          ? `Missing, disabled or incompatible recipe tools: ${missing.join(", ")}. Scripted workflows remain available.`
-          : `Recipe tools registered: ${RECIPE_TOOLS.join(", ")}; recipes verify profiles and provider readiness before use.`,
-        runLines.length ? `Runs:\n${runLines.join("\n")}` : "Runs: none",
-      ].join("\n");
-
+      const report = workflowsReport(pi, ctx, runs);
       const want = args.trim();
       if (!ctx.hasUI) {
-        console.log(header);
+        console.log(report);
         return;
       }
-      if (want === "status" || (!want && runs.size === 0)) {
-        ctx.ui.notify(header, "info");
+      if (want === "status" || (want === "" && runs.size === 0)) {
+        ctx.ui.notify(report, "info");
         return;
       }
-
-      const labels = [...runs.values()].map((r) => `${r.status} ${r.name} (${r.id})`);
-      const picked = await ctx.ui.select("Workflow runs", labels.length ? labels : ["(none)"]);
-      if (!picked || picked === "(none)") return;
-      const id = picked.slice(picked.lastIndexOf("(") + 1, -1);
-      const run = runs.get(id);
-      if (!run) return;
-      const action = await ctx.ui.select(run.name, ["View", "Pause", "Resume", "Stop", "Save"]);
-      if (action === "View") ctx.ui.notify(formatReport(run), "info");
-      if (action === "Pause" || action === "Stop") run.controller.abort();
-      if (action === "Resume" && run.status === "paused")
-        startRun(pi, ctx, run.script, run.args, runs, run);
-      if (action === "Save") ctx.ui.notify(`Saved ${saveScript(ctx.cwd, run.script)}`, "info");
+      await manageRuns({ pi, ctx, runs });
     },
   });
+}
 
+function registerSizeCommand(pi: ExtensionAPI): void {
   pi.registerCommand("workflow-size", {
     description: "Show or set the workflow size guideline",
     getArgumentCompletions: (prefix) => {
@@ -367,43 +352,63 @@ export default function (pi: ExtensionAPI) {
         label: s,
         description: SIZE_HINT[s],
       }));
-      return items.length ? items : null;
+      return items.length > 0 ? items : null;
     },
     handler: async (args, ctx) => {
       const next = parseSize(args);
-      if (!next) {
-        const size = sizeFor(ctx.cwd);
+      if (next === undefined) {
+        const size = sizeFor(pi, ctx.cwd);
         const text = `Size: ${size} (${SIZE_HINT[size]}). Pass small, medium, large, or unrestricted.`;
-        if (ctx.hasUI) ctx.ui.notify(text, "info");
-        else console.log(text);
+        if (ctx.hasUI) {
+          ctx.ui.notify(text, "info");
+        } else {
+          console.log(text);
+        }
         return;
       }
       const path = saveSize(repoRoot(ctx.cwd), next);
       const text = `Size set to ${next} (${SIZE_HINT[next]}) in ${path}`;
-      if (ctx.hasUI) ctx.ui.notify(text, "info");
-      else console.log(text);
+      if (ctx.hasUI) {
+        ctx.ui.notify(text, "info");
+      } else {
+        console.log(text);
+      }
     },
   });
+}
 
-  const launch = (script: string) => async (args: string, ctx: ExtensionCommandContext) => {
-    const decision = await askToRun(ctx, script);
-    if (!decision.ok) return;
-    const run = startRun(pi, ctx, decision.script, args, runs);
-    ctx.ui.notify(`Started ${run.name} (${run.id})`, "info");
-  };
+type Launcher = (script: string) => (args: string, ctx: ExtensionCommandContext) => Promise<void>;
 
+function makeLauncher(pi: ExtensionAPI, runs: Map<string, Run>): Launcher {
+  return (script: string) =>
+    async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
+      const decision = await askToRun(pi, ctx, script);
+      if (!decision.ok) {
+        return;
+      }
+      const run = startRun(pi, ctx, runs, { script: decision.script, args });
+      ctx.ui.notify(`Started ${run.name} (${run.id})`, "info");
+    };
+}
+
+function registerDeepResearch(pi: ExtensionAPI, runs: Map<string, Run>): void {
   pi.registerCommand("deep-research", {
     description: "Research a question across several angles and return a cited report",
-    handler: launch(DEEP_RESEARCH),
+    handler: makeLauncher(pi, runs)(DEEP_RESEARCH),
   });
+}
 
+function registerSessionHandlers(pi: ExtensionAPI, runs: Map<string, Run>): void {
+  const launch = makeLauncher(pi, runs);
   pi.on("session_start", async (_event, ctx) => {
     keywordState.dismissed = false;
     if (ctx.mode === "tui") {
       ctx.ui.setEditorComponent((tui, theme, kb) => new KeywordEditor(tui, theme, kb));
     }
     for (const saved of discoverSaved(ctx.cwd).values()) {
-      if (saved.meta.name === "deep-research" || saved.meta.name === "workflows") continue;
+      if (saved.meta.name === "deep-research" || saved.meta.name === "workflows") {
+        continue;
+      }
       pi.registerCommand(saved.meta.name, {
         description: saved.meta.description,
         handler: launch(saved.source),
@@ -413,50 +418,35 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("input", async (event, ctx) => {
     const invocation = event.text.match(/^\/((?:skill:)?recipe-[a-z0-9-]+)(?:\s|$)/)?.[1];
-    if (invocation) {
-      const command = pi.getCommands().find((command) => command.name === invocation);
+    if (invocation !== undefined) {
       const recipe = invocation.replace(/^skill:/, "");
-      const ownedPath =
-        command?.source === "skill"
-          ? join(skillsDir, recipe, "SKILL.md")
-          : command?.source === "prompt"
-            ? join(promptsDir, `${recipe}.md`)
-            : undefined;
-      // Names alone would also intercept another package's recipe or a user override.
-      if (ownedPath && command?.sourceInfo.path === ownedPath) {
+      if (ownedRecipe(pi, recipe) !== undefined) {
         const missing = unavailableRecipeTools(pi, ctx);
-        if (missing.length) {
-          const text = `Recipe ${recipe} not started. Missing, disabled or incompatible tools: ${missing.join(", ")}. Recipes require a compatible multi-agent executor (Pi Subagents 0.44.4+ with agent/task/label/tasks), pi-todo-list, pi-ask-question and pi-agent-browser-native search. Install or enable these integrations, then retry. Do not replace specialists or approval gates with inline work. Standalone scripted workflows remain available through the workflow tool.`;
-          pi.sendMessage(
-            {
-              customType: "recipe-unavailable",
-              content: [{ type: "text", text }],
-              display: true,
-              details: { recipe, missing },
-            },
-            { triggerTurn: false },
-          );
-          if (ctx.hasUI) ctx.ui.notify(text, "error");
-          else {
-            console.error(text);
-            // ponytail: SDK and print share exitCode; continuing embedders must consume the diagnostic and reset it.
-            process.exitCode = 1;
-          }
+        if (missing.length > 0) {
+          denyRecipe(pi, ctx, recipe, missing);
           return { action: "handled" as const };
         }
       }
     }
-    if (event.source !== "interactive") return { action: "continue" as const };
-    return { action: "transform" as const, text: decorateInput(event.text, sizeFor(ctx.cwd)) };
+    if (event.source !== "interactive") {
+      return { action: "continue" as const };
+    }
+    return { action: "transform" as const, text: decorateInput(event.text, sizeFor(pi, ctx.cwd)) };
   });
 
   pi.on("session_shutdown", async () => {
-    for (const run of runs.values()) run.controller.abort();
+    for (const run of runs.values()) {
+      run.controller.abort();
+    }
     // Shutdown is awaited before contexts become stale; finish owned child cleanup
     // while paint/report callbacks still belong to this session.
-    await Promise.allSettled([...runs.values()].map((run) => run.task));
+    await Promise.allSettled(
+      [...runs.values()].flatMap((run) => (run.task !== undefined ? [run.task] : [])),
+    );
   });
+}
 
+function registerWorkflowTool(pi: ExtensionAPI, runs: Map<string, Run>): void {
   pi.registerTool({
     name: "workflow",
     label: "Workflow",
@@ -466,22 +456,31 @@ export default function (pi: ExtensionAPI) {
       script: Type.String({ description: "Full workflow script including export const meta" }),
       args: Type.Optional(Type.Unknown()),
     }),
+    // QX-001 (eslint/max-params): the SDK mandates this exact five-parameter execute
+    // signature; there is no compliant alternative. See the quality-exception record.
+    // oxlint-disable-next-line eslint/max-params
     async execute(_id, params, signal, _onUpdate, ctx) {
       try {
-        const decision = await askToRun(ctx, params.script);
-        if (!decision.ok)
+        const decision = await askToRun(pi, ctx, params.script);
+        if (!decision.ok) {
           return {
             content: [{ type: "text", text: "User declined the workflow." }],
             details: undefined,
           };
-        const run = startRun(pi, ctx, decision.script, params.args, runs);
-        if (signal?.aborted) run.controller.abort();
-        else if (signal) {
+        }
+        const run = startRun(pi, ctx, runs, { script: decision.script, args: params.args });
+        if (signal?.aborted === true) {
+          run.controller.abort();
+        } else if (signal) {
           const abort = () => run.controller.abort();
           signal.addEventListener("abort", abort, { once: true });
           void run.task?.then(
-            () => signal.removeEventListener("abort", abort),
-            () => signal.removeEventListener("abort", abort),
+            () => {
+              signal.removeEventListener("abort", abort);
+            },
+            () => {
+              signal.removeEventListener("abort", abort);
+            },
           );
         }
         return {
@@ -500,4 +499,17 @@ export default function (pi: ExtensionAPI) {
       }
     },
   });
+}
+
+export default function (pi: ExtensionAPI): void {
+  const runs = new Map<string, Run>();
+  pi.registerFlag("workflow-size", {
+    description: "Workflow size guideline: small, medium, large, unrestricted",
+    type: "string",
+  });
+  registerWorkflows(pi, runs);
+  registerSizeCommand(pi);
+  registerDeepResearch(pi, runs);
+  registerSessionHandlers(pi, runs);
+  registerWorkflowTool(pi, runs);
 }
