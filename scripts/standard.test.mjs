@@ -232,10 +232,15 @@ function put(dir, name, content) {
  * @returns {string} source text
  */
 function complexitySource(count) {
-  const branches = Array.from({ length: count }, (_, i) => `if (v === ${i}) { r += ${i}; }`).join(
-    " ",
-  );
-  return `export function cx(v) { let r = 0; ${branches} return r; }\n`;
+  const rows = [
+    "export function cx(v) {",
+    "  let r = 0;",
+    ...Array.from({ length: count }, (_, i) => `  if (v === ${i}) { r += ${i}; }`),
+    "  return r;",
+    "}",
+    "",
+  ];
+  return rows.join("\n");
 }
 
 /**
@@ -245,12 +250,16 @@ function complexitySource(count) {
  */
 function nestedSource(params, depth) {
   const names = Array.from({ length: params }, (_, i) => `p${i}`);
-  const argList = names.join(", ");
-  let body = `return ${names.at(-1) ?? 0};`;
+  const rows = [`export function deep(${names.join(", ")}) {`];
   for (let i = 0; i < depth; i += 1) {
-    body = `if (${names[i % Math.max(names.length, 1)] ?? "p0"}) { ${body} }`;
+    rows.push(`${" ".repeat(i + 2)}if (${names[i % names.length] ?? "p0"}) {`);
   }
-  return `export function deep(${argList}) { ${body} return 0; }\n`;
+  rows.push(`${" ".repeat(depth + 2)}return ${names.at(-1) ?? 0};`);
+  for (let i = depth - 1; i >= 0; i -= 1) {
+    rows.push(`${" ".repeat(i + 2)}}`);
+  }
+  rows.push("  return 0;", "}", "");
+  return rows.join("\n");
 }
 
 /**
@@ -258,8 +267,15 @@ function nestedSource(params, depth) {
  * @returns {string} source text
  */
 function statementsSource(statements) {
-  const body = Array.from({ length: statements }, (_, i) => `r += ${i};`).join(" ");
-  return `export function many() { let r = 0; ${body} return r; }\n`;
+  const rows = [
+    "export function many() {",
+    "  let r = 0;",
+    ...Array.from({ length: statements }, (_, i) => `  r += ${i};`),
+    "  return r;",
+    "}",
+    "",
+  ];
+  return rows.join("\n");
 }
 
 /**
