@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.2.7 - 2026-11-02
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Add the Section 8.2 qualification control battery (#32) ([669277b](https://github.com/fitchmultz/pi-workflows/commit/669277b31a6913b94e1247f066082b7ac6aebf1d))
+
+### What's Changed
+
+- Add the Section 8.2 qualification control battery by @fitchmultz in https://github.com/fitchmultz/pi-workflows/pull/32
+
+**Full Changelog**: https://github.com/fitchmultz/pi-workflows/compare/v0.2.6...v0.2.7
+
 ## 0.2.6 - 2026-11-02
 
 <!-- npm-release:unreleased:start -->
