@@ -9,10 +9,10 @@ on:
     inputs:
       official-version:
         type: string
-        default: ''
+        default: ""
       fork-ref:
         type: string
-        default: ''
+        default: ""
 
 permissions:
   contents: read

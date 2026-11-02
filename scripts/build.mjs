@@ -9,7 +9,15 @@
 // markdown in, mechanically transformed artifacts out. All upstream-harness → pi
 // translations live in transformContent() / transformAgent() below.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -49,18 +57,27 @@ function translateSubagentFields(input) {
   const s = input.replace(/```[^\n]*\n([\s\S]*?)```/g, (block, body) => {
     const indent = body.match(/^([ \t]*)subagent_type\s*:/m)?.[1];
     if (indent === undefined) return block;
-    return block.replace(new RegExp(`^(${indent})(description|prompt)(\\s*:)`, "gm"),
-      (_match, prefix, field, colon) => `${prefix}${fields[field]}${colon}`);
+    return block.replace(
+      new RegExp(`^(${indent})(description|prompt)(\\s*:)`, "gm"),
+      (_match, prefix, field, colon) => `${prefix}${fields[field]}${colon}`,
+    );
   });
-  const namedInvocation = new RegExp(`\\b[Ii]nvoke\\b[^\\n]*(?:Agent tool|\\b(?:${agentNameAlternation})\\b)[^\\n]*:\\n`);
-  return s.split(/(\n[ \t]*\n)/).map((block) => {
-    const invocation = block.match(/^([ \t]*)- [^\n]*\bsubagent_type`?\s*:/m);
-    if (!invocation && !namedInvocation.test(block)) return block;
-    const indent = invocation?.[1] ?? block.match(/^([ \t]*)- `/m)?.[1];
-    if (indent === undefined) return block;
-    return block.replace(new RegExp(`^(${indent}- \`)(description|prompt)(\`?\\s*:)`, "gm"),
-      (_match, prefix, field, colon) => `${prefix}${fields[field]}${colon}`);
-  }).join("");
+  const namedInvocation = new RegExp(
+    `\\b[Ii]nvoke\\b[^\\n]*(?:Agent tool|\\b(?:${agentNameAlternation})\\b)[^\\n]*:\\n`,
+  );
+  return s
+    .split(/(\n[ \t]*\n)/)
+    .map((block) => {
+      const invocation = block.match(/^([ \t]*)- [^\n]*\bsubagent_type`?\s*:/m);
+      if (!invocation && !namedInvocation.test(block)) return block;
+      const indent = invocation?.[1] ?? block.match(/^([ \t]*)- `/m)?.[1];
+      if (indent === undefined) return block;
+      return block.replace(
+        new RegExp(`^(${indent}- \`)(description|prompt)(\`?\\s*:)`, "gm"),
+        (_match, prefix, field, colon) => `${prefix}${fields[field]}${colon}`,
+      );
+    })
+    .join("");
 }
 
 export function transformContent(input) {
@@ -117,7 +134,10 @@ The \`workflow\` tool and scripted \`agent()/pipeline()\` remain independently u
 `;
 
 function recipeContent(content) {
-  return transformContent(content).replace(/^(---\r?\n[\s\S]*?\r?\n---\r?\n)\s*/, `$1\n${RECIPE_PREFLIGHT}`);
+  return transformContent(content).replace(
+    /^(---\r?\n[\s\S]*?\r?\n---\r?\n)\s*/,
+    `$1\n${RECIPE_PREFLIGHT}`,
+  );
 }
 
 // Recipe skills double as slash commands. In the upstream harness, /recipe-X expands the
@@ -182,17 +202,24 @@ function transformAgent(content) {
   const { fields, body } = parseFrontmatter(content);
   const name = fields.get("name");
   const description = fields.get("description");
-  if (!name || !description) throw new Error(`agent missing name/description: ${content.slice(0, 80)}`);
+  if (!name || !description)
+    throw new Error(`agent missing name/description: ${content.slice(0, 80)}`);
 
   const lines = [`name: ${name}`, `description: ${description}`];
 
   const toolsRaw = fields.get("tools");
   const disallowed = new Set(
-    (fields.get("disallowedTools") ?? "").split(",").map((x) => x.trim()).filter(Boolean),
+    (fields.get("disallowedTools") ?? "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean),
   );
   if (toolsRaw) {
     const mapped = [];
-    for (const t of toolsRaw.split(",").map((x) => x.trim()).filter(Boolean)) {
+    for (const t of toolsRaw
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)) {
       if (disallowed.has(t)) continue;
       const piTool = TOOL_MAP.get(t);
       if (!piTool) throw new Error(`unmapped upstream tool '${t}' in agent ${name}`);
@@ -259,7 +286,10 @@ function generate() {
   }
   for (const file of readdirSync(SRC_AGENTS)) {
     if (!file.endsWith(".md")) continue;
-    writeFileSync(join(DST_AGENTS, file), transformAgent(readFileSync(join(SRC_AGENTS, file), "utf8")));
+    writeFileSync(
+      join(DST_AGENTS, file),
+      transformAgent(readFileSync(join(SRC_AGENTS, file), "utf8")),
+    );
   }
   // Only these source-owned trees are distributable; never copy project .pi state.
   rmSync(PACKAGE_RESOURCES, { recursive: true, force: true });
@@ -290,65 +320,97 @@ function check() {
       problems.push(`missing public resource directory: ${dir}`);
       continue;
     }
-    const projectFiles = [...walk(projectDir)].map(file => file.slice(projectDir.length + 1)).sort();
-    const packageFiles = [...walk(packageDir)].map(file => file.slice(packageDir.length + 1)).sort();
-    if (JSON.stringify(projectFiles) !== JSON.stringify(packageFiles)) problems.push(`public ${dir} file inventory differs from project assets`);
+    const projectFiles = [...walk(projectDir)]
+      .map((file) => file.slice(projectDir.length + 1))
+      .sort();
+    const packageFiles = [...walk(packageDir)]
+      .map((file) => file.slice(packageDir.length + 1))
+      .sort();
+    if (JSON.stringify(projectFiles) !== JSON.stringify(packageFiles))
+      problems.push(`public ${dir} file inventory differs from project assets`);
     for (const file of projectFiles) {
       const target = join(packageDir, file);
-      if (!existsSync(target) || !readFileSync(join(projectDir, file)).equals(readFileSync(target))) {
+      if (
+        !existsSync(target) ||
+        !readFileSync(join(projectDir, file)).equals(readFileSync(target))
+      ) {
         problems.push(`public ${dir}/${file} differs from source-owned project asset`);
       }
     }
   }
-  if (existsSync(PACKAGE_RESOURCES) && readdirSync(PACKAGE_RESOURCES).some(dir => !RESOURCE_DIRS.includes(dir))) {
+  if (
+    existsSync(PACKAGE_RESOURCES) &&
+    readdirSync(PACKAGE_RESOURCES).some((dir) => !RESOURCE_DIRS.includes(dir))
+  ) {
     problems.push("unexpected public resource tree");
   }
 
-  const srcSkillDirs = readdirSync(SRC_SKILLS).filter((d) => existsSync(join(SRC_SKILLS, d, "SKILL.md")));
+  const srcSkillDirs = readdirSync(SRC_SKILLS).filter((d) =>
+    existsSync(join(SRC_SKILLS, d, "SKILL.md")),
+  );
   const dstSkillDirs = existsSync(DST_SKILLS)
     ? readdirSync(DST_SKILLS).filter((d) => existsSync(join(DST_SKILLS, d, "SKILL.md")))
     : [];
   const srcAgents = readdirSync(SRC_AGENTS).filter((f) => f.endsWith(".md"));
-  const dstAgents = existsSync(DST_AGENTS) ? readdirSync(DST_AGENTS).filter((f) => f.endsWith(".md")) : [];
+  const dstAgents = existsSync(DST_AGENTS)
+    ? readdirSync(DST_AGENTS).filter((f) => f.endsWith(".md"))
+    : [];
   const srcRecipes = srcSkillDirs.filter((d) => d.startsWith("recipe-"));
-  const dstPrompts = existsSync(DST_PROMPTS) ? readdirSync(DST_PROMPTS).filter((f) => f.endsWith(".md")) : [];
+  const dstPrompts = existsSync(DST_PROMPTS)
+    ? readdirSync(DST_PROMPTS).filter((f) => f.endsWith(".md"))
+    : [];
   if (srcRecipes.length !== dstPrompts.length)
-    problems.push(`recipe prompt count: upstream ${srcRecipes.length} vs generated ${dstPrompts.length}`);
+    problems.push(
+      `recipe prompt count: upstream ${srcRecipes.length} vs generated ${dstPrompts.length}`,
+    );
   for (const r of srcRecipes) {
     if (!dstPrompts.includes(`${r}.md`)) {
       problems.push(`missing recipe prompt: ${r}.md`);
       continue;
     }
     // The template pi expands must equal the translated upstream skill body.
-    const expected = toPromptTemplate(recipeContent(readFileSync(join(SRC_SKILLS, r, "SKILL.md"), "utf8")));
+    const expected = toPromptTemplate(
+      recipeContent(readFileSync(join(SRC_SKILLS, r, "SKILL.md"), "utf8")),
+    );
     const actual = readFileSync(join(DST_PROMPTS, `${r}.md`), "utf8");
     if (actual !== expected) problems.push(`${r}.md: template body differs from translated skill`);
   }
 
   if (srcSkillDirs.length !== dstSkillDirs.length)
-    problems.push(`skill count: upstream ${srcSkillDirs.length} vs generated ${dstSkillDirs.length}`);
+    problems.push(
+      `skill count: upstream ${srcSkillDirs.length} vs generated ${dstSkillDirs.length}`,
+    );
   if (srcAgents.length !== dstAgents.length)
     problems.push(`agent count: upstream ${srcAgents.length} vs generated ${dstAgents.length}`);
   for (const d of srcSkillDirs) if (!dstSkillDirs.includes(d)) problems.push(`missing skill: ${d}`);
   for (const f of srcAgents) if (!dstAgents.includes(f)) problems.push(`missing agent: ${f}`);
   const skillSources = [...walk(SRC_SKILLS)];
-  const sourceSkillFiles = skillSources.map(path => path.slice(SRC_SKILLS.length + 1)).sort();
-  const generatedSkillFiles = existsSync(DST_SKILLS) ? [...walk(DST_SKILLS)].map(path => path.slice(DST_SKILLS.length + 1)).sort() : [];
-  if (JSON.stringify(sourceSkillFiles) !== JSON.stringify(generatedSkillFiles)) problems.push("generated skill/support file inventory differs from canonical source");
+  const sourceSkillFiles = skillSources.map((path) => path.slice(SRC_SKILLS.length + 1)).sort();
+  const generatedSkillFiles = existsSync(DST_SKILLS)
+    ? [...walk(DST_SKILLS)].map((path) => path.slice(DST_SKILLS.length + 1)).sort()
+    : [];
+  if (JSON.stringify(sourceSkillFiles) !== JSON.stringify(generatedSkillFiles))
+    problems.push("generated skill/support file inventory differs from canonical source");
   for (const source of skillSources) {
     const relative = source.slice(SRC_SKILLS.length + 1);
     const target = join(DST_SKILLS, relative);
     const input = readFileSync(source);
     const expected = source.endsWith(".md")
-      ? Buffer.from(relative.split(sep)[0].startsWith("recipe-") && relative.endsWith(`${sep}SKILL.md`)
-        ? skillInvocationArgs(recipeContent(input.toString()))
-        : transformContent(input.toString()))
+      ? Buffer.from(
+          relative.split(sep)[0].startsWith("recipe-") && relative.endsWith(`${sep}SKILL.md`)
+            ? skillInvocationArgs(recipeContent(input.toString()))
+            : transformContent(input.toString()),
+        )
       : input;
-    if (!existsSync(target) || !expected.equals(readFileSync(target))) problems.push(`${relative}: generated skill differs from canonical source`);
+    if (!existsSync(target) || !expected.equals(readFileSync(target)))
+      problems.push(`${relative}: generated skill differs from canonical source`);
   }
   for (const file of srcAgents) {
     const target = join(DST_AGENTS, file);
-    if (existsSync(target) && readFileSync(target, "utf8") !== transformAgent(readFileSync(join(SRC_AGENTS, file), "utf8"))) {
+    if (
+      existsSync(target) &&
+      readFileSync(target, "utf8") !== transformAgent(readFileSync(join(SRC_AGENTS, file), "utf8"))
+    ) {
       problems.push(`${file}: generated agent differs from canonical source`);
     }
   }
@@ -395,11 +457,17 @@ function check() {
   // Every skill attached to an agent must exist in .pi/skills.
   for (const f of dstAgents) {
     const { fields } = parseFrontmatter(readFileSync(join(DST_AGENTS, f), "utf8"));
-    for (const s of (fields.get("skills") ?? "").split(",").map((x) => x.trim()).filter(Boolean)) {
+    for (const s of (fields.get("skills") ?? "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)) {
       if (!skillNames.has(s)) problems.push(`${f}: attached skill '${s}' not in .pi/skills`);
     }
     // Agent tools must be pi tool names.
-    for (const t of (fields.get("tools") ?? "").split(",").map((x) => x.trim()).filter(Boolean)) {
+    for (const t of (fields.get("tools") ?? "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)) {
       if (!/^[a-z_][a-z_0-9]*$/.test(t)) problems.push(`${f}: suspicious tool name '${t}'`);
     }
   }
@@ -411,10 +479,13 @@ export { generate, check, toPromptTemplate, transformAgent, skillInvocationArgs 
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
-    console.log("Usage: node scripts/build.mjs [--check]\n\nRegenerate project assets and public package resources from reference/workflows.\nExamples:\n  node scripts/build.mjs          # regenerate both layouts\n  node scripts/build.mjs --check  # verify without rewriting\nExit codes: 0 complete; 1 invalid arguments or inconsistent assets.");
+    console.log(
+      "Usage: node scripts/build.mjs [--check]\n\nRegenerate project assets and public package resources from reference/workflows.\nExamples:\n  node scripts/build.mjs          # regenerate both layouts\n  node scripts/build.mjs --check  # verify without rewriting\nExit codes: 0 complete; 1 invalid arguments or inconsistent assets.",
+    );
     process.exit(0);
   }
-  if (process.argv.slice(2).some(arg => arg !== "--check")) throw new Error("Expected --check or --help");
+  if (process.argv.slice(2).some((arg) => arg !== "--check"))
+    throw new Error("Expected --check or --help");
   if (!CHECK) generate();
   const problems = check();
   const skillCount = existsSync(DST_SKILLS) ? readdirSync(DST_SKILLS).length : 0;
@@ -424,5 +495,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     for (const p of problems) console.error(`  - ${p}`);
     process.exit(1);
   }
-  console.log(`pi-workflows build OK: ${skillCount} skills, ${agentCount} agents (${CHECK ? "check only" : "regenerated"})`);
+  console.log(
+    `pi-workflows build OK: ${skillCount} skills, ${agentCount} agents (${CHECK ? "check only" : "regenerated"})`,
+  );
 }
