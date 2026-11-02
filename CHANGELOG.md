@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.2.8 - 2026-11-02
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Raise the Pi floor to 1.5.0 (#34) ([26afa41](https://github.com/fitchmultz/pi-workflows/commit/26afa4130487da12fd409298a191d429c59d5190))
+
+### What's Changed
+
+- Raise the Pi floor to 1.5.0 by @fitchmultz in https://github.com/fitchmultz/pi-workflows/pull/34
+
+**Full Changelog**: https://github.com/fitchmultz/pi-workflows/compare/v0.2.7...v0.2.8
+
 ## 0.2.7 - 2026-11-02
 
 <!-- npm-release:unreleased:start -->
