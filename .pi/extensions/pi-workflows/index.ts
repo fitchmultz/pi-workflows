@@ -1,24 +1,28 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionCommandContext,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import {
-	firstUnfinished,
-	parseMeta,
-	runWorkflow,
-	type RunResult,
-	type WorkflowMeta,
+  firstUnfinished,
+  parseMeta,
+  runWorkflow,
+  type RunResult,
+  type WorkflowMeta,
 } from "./runtime.ts";
 import { spawnWorker } from "./spawn.ts";
 import {
-	decorateInput,
-	loadSize,
-	keywordState,
-	parseSize,
-	saveSize,
-	SIZE_HINT,
-	SIZES,
+  decorateInput,
+  loadSize,
+  keywordState,
+  parseSize,
+  saveSize,
+  SIZE_HINT,
+  SIZES,
 } from "./polish.ts";
 import { approvalCard, KeywordEditor } from "./ui.ts";
 
@@ -30,35 +34,46 @@ const promptsDir = join(piDir, "prompts");
 const RECIPE_TOOLS = ["subagent", "todo_list", "ask_question", "agent_browser_web_search"];
 
 function unavailableRecipeTools(pi: ExtensionAPI, ctx: ExtensionContext): string[] {
-	const tools = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
-	const active = new Set(pi.getActiveTools());
-	let groupDeferred = new Set<string>();
-	if (active.has("discover_tools")) {
-		// ponytail: input precedes native deferral retirement; recipe preflight is the final capability check.
-		for (const entry of ctx.sessionManager.getBranch()) {
-			if (entry.type !== "custom" || entry.customType !== "pi:instruction-groups") continue;
-			const data = entry.data;
-			if (data && typeof data === "object" && "inactive" in data && Array.isArray(data.inactive)) {
-				groupDeferred = new Set(data.inactive.filter((name): name is string => typeof name === "string"));
-			}
-		}
-	}
-	const available = (name: string): boolean => {
-		const tool = tools.get(name);
-		return !!tool && tool.exposure !== "hidden" &&
-			(active.has(name) || groupDeferred.has(name) || ((active.has("codemode") || active.has("tool_search")) &&
-				(tool.exposure === "codemode" || tool.exposure === "deferred")));
-	};
-	return RECIPE_TOOLS.filter((name) => {
-		if (name !== "subagent") return !available(name);
-		const tool = tools.get(name);
-		const schema = tool?.parameters;
-		const properties = schema && "properties" in schema ? schema.properties : undefined;
-		return !tool || tool.exposure === "hidden" ||
-			!properties || typeof properties !== "object" ||
-			!["agent", "task", "label", "tasks"].every((key) => key in properties) ||
-			(!available(name) && !available("load_subagent"));
-	});
+  const tools = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
+  const active = new Set(pi.getActiveTools());
+  let groupDeferred = new Set<string>();
+  if (active.has("discover_tools")) {
+    // ponytail: input precedes native deferral retirement; recipe preflight is the final capability check.
+    for (const entry of ctx.sessionManager.getBranch()) {
+      if (entry.type !== "custom" || entry.customType !== "pi:instruction-groups") continue;
+      const data = entry.data;
+      if (data && typeof data === "object" && "inactive" in data && Array.isArray(data.inactive)) {
+        groupDeferred = new Set(
+          data.inactive.filter((name): name is string => typeof name === "string"),
+        );
+      }
+    }
+  }
+  const available = (name: string): boolean => {
+    const tool = tools.get(name);
+    return (
+      !!tool &&
+      tool.exposure !== "hidden" &&
+      (active.has(name) ||
+        groupDeferred.has(name) ||
+        ((active.has("codemode") || active.has("tool_search")) &&
+          (tool.exposure === "codemode" || tool.exposure === "deferred")))
+    );
+  };
+  return RECIPE_TOOLS.filter((name) => {
+    if (name !== "subagent") return !available(name);
+    const tool = tools.get(name);
+    const schema = tool?.parameters;
+    const properties = schema && "properties" in schema ? schema.properties : undefined;
+    return (
+      !tool ||
+      tool.exposure === "hidden" ||
+      !properties ||
+      typeof properties !== "object" ||
+      !["agent", "task", "label", "tasks"].every((key) => key in properties) ||
+      (!available(name) && !available("load_subagent"))
+    );
+  });
 }
 
 const DEEP_RESEARCH = `export const meta = {
@@ -91,370 +106,398 @@ return await agent(
 type RunStatus = "running" | "paused" | "done" | "failed";
 
 type Run = {
-	id: string;
-	name: string;
-	description: string;
-	script: string;
-	args?: unknown;
-	status: RunStatus;
-	error?: string;
-	value?: unknown;
-	started: number[];
-	cache: unknown[];
-	replayThrough: number;
-	controller: AbortController;
-	task?: Promise<void>;
+  id: string;
+  name: string;
+  description: string;
+  script: string;
+  args?: unknown;
+  status: RunStatus;
+  error?: string;
+  value?: unknown;
+  started: number[];
+  cache: unknown[];
+  replayThrough: number;
+  controller: AbortController;
+  task?: Promise<void>;
 };
 
 let seq = 0;
 
 function listDirNames(dir: string, kind: "dir" | "file"): string[] {
-	if (!existsSync(dir)) return [];
-	return readdirSync(dir, { withFileTypes: true })
-		.filter((e) => (kind === "dir" ? e.isDirectory() : e.isFile() && e.name.endsWith(".md")))
-		.map((e) => (kind === "dir" ? e.name : e.name.replace(/\.md$/, "")))
-		.sort();
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((e) => (kind === "dir" ? e.isDirectory() : e.isFile() && e.name.endsWith(".md")))
+    .map((e) => (kind === "dir" ? e.name : e.name.replace(/\.md$/, "")))
+    .sort();
 }
 
 function walkWorkflowDirs(cwd: string): string[] {
-	const dirs: string[] = [];
-	let dir = cwd;
-	for (;;) {
-		const candidate = join(dir, ".pi", "workflows");
-		if (existsSync(candidate)) dirs.push(candidate);
-		const parent = dirname(dir);
-		if (parent === dir) break;
-		if (existsSync(join(dir, ".git"))) break;
-		dir = parent;
-	}
-	return dirs;
+  const dirs: string[] = [];
+  let dir = cwd;
+  for (;;) {
+    const candidate = join(dir, ".pi", "workflows");
+    if (existsSync(candidate)) dirs.push(candidate);
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    if (existsSync(join(dir, ".git"))) break;
+    dir = parent;
+  }
+  return dirs;
 }
 
-function discoverSaved(cwd: string): Map<string, { meta: WorkflowMeta; source: string; path: string }> {
-	const found = new Map<string, { meta: WorkflowMeta; source: string; path: string }>();
-	for (const dir of walkWorkflowDirs(cwd).reverse()) {
-		for (const file of readdirSync(dir).filter((f) => f.endsWith(".js"))) {
-			const path = join(dir, file);
-			const source = readFileSync(path, "utf8");
-			try {
-				const meta = parseMeta(source);
-				found.set(meta.name, { meta, source, path });
-			} catch {
-				// skip invalid scripts
-			}
-		}
-	}
-	return found;
+function discoverSaved(
+  cwd: string,
+): Map<string, { meta: WorkflowMeta; source: string; path: string }> {
+  const found = new Map<string, { meta: WorkflowMeta; source: string; path: string }>();
+  for (const dir of walkWorkflowDirs(cwd).reverse()) {
+    for (const file of readdirSync(dir).filter((f) => f.endsWith(".js"))) {
+      const path = join(dir, file);
+      const source = readFileSync(path, "utf8");
+      try {
+        const meta = parseMeta(source);
+        found.set(meta.name, { meta, source, path });
+      } catch {
+        // skip invalid scripts
+      }
+    }
+  }
+  return found;
 }
 
 function newId(): string {
-	seq += 1;
-	return `wf-${Date.now().toString(36)}-${seq}`;
+  seq += 1;
+  return `wf-${Date.now().toString(36)}-${seq}`;
 }
 
 function cacheFrom(result: RunResult): { cache: unknown[]; replayThrough: number } {
-	const finished = new Set(result.finished.keys());
-	const cut = firstUnfinished(result.started, finished);
-	const replayThrough = cut === undefined ? result.started.length - 1 : cut - 1;
-	const cache: unknown[] = [];
-	for (const id of result.started) {
-		if (id > replayThrough) break;
-		cache[id] = result.finished.get(id);
-	}
-	return { cache, replayThrough };
+  const finished = new Set(result.finished.keys());
+  const cut = firstUnfinished(result.started, finished);
+  const replayThrough = cut === undefined ? result.started.length - 1 : cut - 1;
+  const cache: unknown[] = [];
+  for (const id of result.started) {
+    if (id > replayThrough) break;
+    cache[id] = result.finished.get(id);
+  }
+  return { cache, replayThrough };
 }
 
 function startRun(
-	pi: ExtensionAPI,
-	ctx: ExtensionContext,
-	script: string,
-	args: unknown,
-	runs: Map<string, Run>,
-	resume?: Run,
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  script: string,
+  args: unknown,
+  runs: Map<string, Run>,
+  resume?: Run,
 ): Run {
-	const meta = parseMeta(script);
-	const run: Run = resume ?? {
-		id: newId(),
-		name: meta.name,
-		description: meta.description,
-		script,
-		args,
-		status: "running",
-		started: [],
-		cache: [],
-		replayThrough: -1,
-		controller: new AbortController(),
-	};
-	if (resume) {
-		run.status = "running";
-		run.controller = new AbortController();
-		run.error = undefined;
-	}
-	runs.set(run.id, run);
-	let startedCount = 0;
-	const paint = () => {
-		const done = run.cache.filter((_, i) => i <= run.replayThrough).length;
-		const large = startedCount > 25 ? " large" : "";
-		const line = `${run.name} ${run.status} ${done} cached, ${startedCount} started${large}`;
-		ctx.ui.setStatus("workflows", line);
-		if (ctx.mode === "tui") ctx.ui.setWidget("workflows", [line]);
-	};
-	run.task = (async () => {
-		const result = await runWorkflow(script, {
-			args,
-			signal: run.controller.signal,
-			replayThrough: run.replayThrough,
-			cache: run.cache,
-			agent: (prompt, opts) => spawnWorker(prompt, { ...opts, cwd: ctx.cwd, signal: run.controller.signal }),
-			onEvent: (event) => {
-				if (event.type === "agent_start") startedCount += 1;
-				paint();
-			},
-		});
-		const snap = cacheFrom(result);
-		run.cache = snap.cache;
-		run.replayThrough = snap.replayThrough;
-		run.started = result.started;
-		if (run.controller.signal.aborted) {
-			run.status = "paused";
-		} else if (result.ok) {
-			run.status = "done";
-			run.value = result.value;
-			await pi.sendMessage({
-				customType: "workflow-report",
-				content: [{ type: "text", text: formatReport(run) }],
-				display: true,
-				details: { name: run.name, id: run.id },
-			});
-		} else {
-			run.status = "failed";
-			run.error = result.error;
-		}
-		paint();
-		if (run.status === "done" || run.status === "failed") {
-			ctx.ui.setWidget("workflows", undefined);
-			ctx.ui.setStatus("workflows", undefined);
-		}
-	})();
-	paint();
-	return run;
+  const meta = parseMeta(script);
+  const run: Run = resume ?? {
+    id: newId(),
+    name: meta.name,
+    description: meta.description,
+    script,
+    args,
+    status: "running",
+    started: [],
+    cache: [],
+    replayThrough: -1,
+    controller: new AbortController(),
+  };
+  if (resume) {
+    run.status = "running";
+    run.controller = new AbortController();
+    run.error = undefined;
+  }
+  runs.set(run.id, run);
+  let startedCount = 0;
+  const paint = () => {
+    const done = run.cache.filter((_, i) => i <= run.replayThrough).length;
+    const large = startedCount > 25 ? " large" : "";
+    const line = `${run.name} ${run.status} ${done} cached, ${startedCount} started${large}`;
+    ctx.ui.setStatus("workflows", line);
+    if (ctx.mode === "tui") ctx.ui.setWidget("workflows", [line]);
+  };
+  run.task = (async () => {
+    const result = await runWorkflow(script, {
+      args,
+      signal: run.controller.signal,
+      replayThrough: run.replayThrough,
+      cache: run.cache,
+      agent: (prompt, opts) =>
+        spawnWorker(prompt, { ...opts, cwd: ctx.cwd, signal: run.controller.signal }),
+      onEvent: (event) => {
+        if (event.type === "agent_start") startedCount += 1;
+        paint();
+      },
+    });
+    const snap = cacheFrom(result);
+    run.cache = snap.cache;
+    run.replayThrough = snap.replayThrough;
+    run.started = result.started;
+    if (run.controller.signal.aborted) {
+      run.status = "paused";
+    } else if (result.ok) {
+      run.status = "done";
+      run.value = result.value;
+      await pi.sendMessage({
+        customType: "workflow-report",
+        content: [{ type: "text", text: formatReport(run) }],
+        display: true,
+        details: { name: run.name, id: run.id },
+      });
+    } else {
+      run.status = "failed";
+      run.error = result.error;
+    }
+    paint();
+    if (run.status === "done" || run.status === "failed") {
+      ctx.ui.setWidget("workflows", undefined);
+      ctx.ui.setStatus("workflows", undefined);
+    }
+  })();
+  paint();
+  return run;
 }
 
 function formatReport(run: Run): string {
-	if (run.status === "failed") return `Workflow ${run.name} failed: ${run.error ?? "unknown error"}`;
-	if (run.status !== "done") return `Workflow ${run.name} ${run.status}.`;
-	const body = typeof run.value === "string" ? run.value : JSON.stringify(run.value, null, 2);
-	return `Workflow ${run.name} finished.\n\n${body ?? ""}`;
+  if (run.status === "failed")
+    return `Workflow ${run.name} failed: ${run.error ?? "unknown error"}`;
+  if (run.status !== "done") return `Workflow ${run.name} ${run.status}.`;
+  const body = typeof run.value === "string" ? run.value : JSON.stringify(run.value, null, 2);
+  return `Workflow ${run.name} finished.\n\n${body ?? ""}`;
 }
 
 function repoRoot(cwd: string): string {
-	let dir = cwd;
-	let root = cwd;
-	for (;;) {
-		if (existsSync(join(dir, ".git"))) return dir;
-		const parent = dirname(dir);
-		if (parent === dir) return root;
-		dir = parent;
-	}
+  let dir = cwd;
+  let root = cwd;
+  for (;;) {
+    if (existsSync(join(dir, ".git"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return root;
+    dir = parent;
+  }
 }
 
 function saveScript(cwd: string, script: string): string {
-	const meta = parseMeta(script);
-	const dir = walkWorkflowDirs(cwd)[0] ?? join(repoRoot(cwd), ".pi", "workflows");
-	mkdirSync(dir, { recursive: true });
-	const path = join(dir, `${meta.name}.js`);
-	writeFileSync(path, script.endsWith("\n") ? script : `${script}\n`);
-	return path;
+  const meta = parseMeta(script);
+  const dir = walkWorkflowDirs(cwd)[0] ?? join(repoRoot(cwd), ".pi", "workflows");
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, `${meta.name}.js`);
+  writeFileSync(path, script.endsWith("\n") ? script : `${script}\n`);
+  return path;
 }
 
 export default function (pi: ExtensionAPI) {
-	const runs = new Map<string, Run>();
-	pi.registerFlag("workflow-size", {
-		description: "Workflow size guideline: small, medium, large, unrestricted",
-		type: "string",
-	});
+  const runs = new Map<string, Run>();
+  pi.registerFlag("workflow-size", {
+    description: "Workflow size guideline: small, medium, large, unrestricted",
+    type: "string",
+  });
 
-	const flagSize = () => {
-		const value = pi.getFlag("workflow-size");
-		return typeof value === "string" ? value : undefined;
-	};
-	const sizeFor = (cwd: string) => loadSize(repoRoot(cwd), flagSize());
+  const flagSize = () => {
+    const value = pi.getFlag("workflow-size");
+    return typeof value === "string" ? value : undefined;
+  };
+  const sizeFor = (cwd: string) => loadSize(repoRoot(cwd), flagSize());
 
-	const askToRun = async (ctx: ExtensionContext, script: string) => {
-		const meta = parseMeta(script);
-		return approvalCard(ctx, {
-			name: meta.name,
-			description: meta.description,
-			script,
-			size: sizeFor(ctx.cwd),
-			root: repoRoot(ctx.cwd),
-		});
-	};
+  const askToRun = async (ctx: ExtensionContext, script: string) => {
+    const meta = parseMeta(script);
+    return approvalCard(ctx, {
+      name: meta.name,
+      description: meta.description,
+      script,
+      size: sizeFor(ctx.cwd),
+      root: repoRoot(ctx.cwd),
+    });
+  };
 
-	pi.registerCommand("workflows", {
-		description: "List recipes, saved scripts, and manage runs",
-		handler: async (args, ctx) => {
-			const skills = existsSync(skillsDir)
-				? readdirSync(skillsDir).filter((d) => existsSync(join(skillsDir, d, "SKILL.md")))
-				: [];
-			const agents = listDirNames(agentsDir, "file");
-			const recipes = listDirNames(promptsDir, "file");
-			const missing = unavailableRecipeTools(pi, ctx);
-			const saved = [...discoverSaved(ctx.cwd).values()].map((s) => s.meta.name);
-			const size = sizeFor(ctx.cwd);
-			const runLines = [...runs.values()].map((r) => `${r.status} ${r.name} (${r.id})`);
-			const header = [
-				`Recipes (${recipes.length}): ${recipes.map((r) => `/${r}`).join(", ") || "none"}`,
-				`Skills (${skills.length}): ${skills.join(", ") || "none"}`,
-				`Agents (${agents.length}): ${agents.join(", ") || "none"}`,
-				`Saved scripts: ${saved.map((n) => `/${n}`).join(", ") || "none"}`,
-				`Size: ${size} (${SIZE_HINT[size]}) — /workflow-size to change`,
-				missing.length
-					? `Missing, disabled or incompatible recipe tools: ${missing.join(", ")}. Scripted workflows remain available.`
-					: `Recipe tools registered: ${RECIPE_TOOLS.join(", ")}; recipes verify profiles and provider readiness before use.`,
-				runLines.length ? `Runs:\n${runLines.join("\n")}` : "Runs: none",
-			].join("\n");
+  pi.registerCommand("workflows", {
+    description: "List recipes, saved scripts, and manage runs",
+    handler: async (args, ctx) => {
+      const skills = existsSync(skillsDir)
+        ? readdirSync(skillsDir).filter((d) => existsSync(join(skillsDir, d, "SKILL.md")))
+        : [];
+      const agents = listDirNames(agentsDir, "file");
+      const recipes = listDirNames(promptsDir, "file");
+      const missing = unavailableRecipeTools(pi, ctx);
+      const saved = [...discoverSaved(ctx.cwd).values()].map((s) => s.meta.name);
+      const size = sizeFor(ctx.cwd);
+      const runLines = [...runs.values()].map((r) => `${r.status} ${r.name} (${r.id})`);
+      const header = [
+        `Recipes (${recipes.length}): ${recipes.map((r) => `/${r}`).join(", ") || "none"}`,
+        `Skills (${skills.length}): ${skills.join(", ") || "none"}`,
+        `Agents (${agents.length}): ${agents.join(", ") || "none"}`,
+        `Saved scripts: ${saved.map((n) => `/${n}`).join(", ") || "none"}`,
+        `Size: ${size} (${SIZE_HINT[size]}) — /workflow-size to change`,
+        missing.length
+          ? `Missing, disabled or incompatible recipe tools: ${missing.join(", ")}. Scripted workflows remain available.`
+          : `Recipe tools registered: ${RECIPE_TOOLS.join(", ")}; recipes verify profiles and provider readiness before use.`,
+        runLines.length ? `Runs:\n${runLines.join("\n")}` : "Runs: none",
+      ].join("\n");
 
-			const want = args.trim();
-			if (!ctx.hasUI) {
-				console.log(header);
-				return;
-			}
-			if (want === "status" || (!want && runs.size === 0)) {
-				ctx.ui.notify(header, "info");
-				return;
-			}
+      const want = args.trim();
+      if (!ctx.hasUI) {
+        console.log(header);
+        return;
+      }
+      if (want === "status" || (!want && runs.size === 0)) {
+        ctx.ui.notify(header, "info");
+        return;
+      }
 
-			const labels = [...runs.values()].map((r) => `${r.status} ${r.name} (${r.id})`);
-			const picked = await ctx.ui.select("Workflow runs", labels.length ? labels : ["(none)"]);
-			if (!picked || picked === "(none)") return;
-			const id = picked.slice(picked.lastIndexOf("(") + 1, -1);
-			const run = runs.get(id);
-			if (!run) return;
-			const action = await ctx.ui.select(run.name, ["View", "Pause", "Resume", "Stop", "Save"]);
-			if (action === "View") ctx.ui.notify(formatReport(run), "info");
-			if (action === "Pause" || action === "Stop") run.controller.abort();
-			if (action === "Resume" && run.status === "paused") startRun(pi, ctx, run.script, run.args, runs, run);
-			if (action === "Save") ctx.ui.notify(`Saved ${saveScript(ctx.cwd, run.script)}`, "info");
-		},
-	});
+      const labels = [...runs.values()].map((r) => `${r.status} ${r.name} (${r.id})`);
+      const picked = await ctx.ui.select("Workflow runs", labels.length ? labels : ["(none)"]);
+      if (!picked || picked === "(none)") return;
+      const id = picked.slice(picked.lastIndexOf("(") + 1, -1);
+      const run = runs.get(id);
+      if (!run) return;
+      const action = await ctx.ui.select(run.name, ["View", "Pause", "Resume", "Stop", "Save"]);
+      if (action === "View") ctx.ui.notify(formatReport(run), "info");
+      if (action === "Pause" || action === "Stop") run.controller.abort();
+      if (action === "Resume" && run.status === "paused")
+        startRun(pi, ctx, run.script, run.args, runs, run);
+      if (action === "Save") ctx.ui.notify(`Saved ${saveScript(ctx.cwd, run.script)}`, "info");
+    },
+  });
 
-	pi.registerCommand("workflow-size", {
-		description: "Show or set the workflow size guideline",
-		getArgumentCompletions: (prefix) => {
-			const items = SIZES.filter((s) => s.startsWith(prefix)).map((s) => ({
-				value: s,
-				label: s,
-				description: SIZE_HINT[s],
-			}));
-			return items.length ? items : null;
-		},
-		handler: async (args, ctx) => {
-			const next = parseSize(args);
-			if (!next) {
-				const size = sizeFor(ctx.cwd);
-				const text = `Size: ${size} (${SIZE_HINT[size]}). Pass small, medium, large, or unrestricted.`;
-				if (ctx.hasUI) ctx.ui.notify(text, "info");
-				else console.log(text);
-				return;
-			}
-			const path = saveSize(repoRoot(ctx.cwd), next);
-			const text = `Size set to ${next} (${SIZE_HINT[next]}) in ${path}`;
-			if (ctx.hasUI) ctx.ui.notify(text, "info");
-			else console.log(text);
-		},
-	});
+  pi.registerCommand("workflow-size", {
+    description: "Show or set the workflow size guideline",
+    getArgumentCompletions: (prefix) => {
+      const items = SIZES.filter((s) => s.startsWith(prefix)).map((s) => ({
+        value: s,
+        label: s,
+        description: SIZE_HINT[s],
+      }));
+      return items.length ? items : null;
+    },
+    handler: async (args, ctx) => {
+      const next = parseSize(args);
+      if (!next) {
+        const size = sizeFor(ctx.cwd);
+        const text = `Size: ${size} (${SIZE_HINT[size]}). Pass small, medium, large, or unrestricted.`;
+        if (ctx.hasUI) ctx.ui.notify(text, "info");
+        else console.log(text);
+        return;
+      }
+      const path = saveSize(repoRoot(ctx.cwd), next);
+      const text = `Size set to ${next} (${SIZE_HINT[next]}) in ${path}`;
+      if (ctx.hasUI) ctx.ui.notify(text, "info");
+      else console.log(text);
+    },
+  });
 
-	const launch = (script: string) => async (args: string, ctx: ExtensionCommandContext) => {
-		const decision = await askToRun(ctx, script);
-		if (!decision.ok) return;
-		const run = startRun(pi, ctx, decision.script, args, runs);
-		ctx.ui.notify(`Started ${run.name} (${run.id})`, "info");
-	};
+  const launch = (script: string) => async (args: string, ctx: ExtensionCommandContext) => {
+    const decision = await askToRun(ctx, script);
+    if (!decision.ok) return;
+    const run = startRun(pi, ctx, decision.script, args, runs);
+    ctx.ui.notify(`Started ${run.name} (${run.id})`, "info");
+  };
 
-	pi.registerCommand("deep-research", {
-		description: "Research a question across several angles and return a cited report",
-		handler: launch(DEEP_RESEARCH),
-	});
+  pi.registerCommand("deep-research", {
+    description: "Research a question across several angles and return a cited report",
+    handler: launch(DEEP_RESEARCH),
+  });
 
-	pi.on("session_start", async (_event, ctx) => {
-		keywordState.dismissed = false;
-		if (ctx.mode === "tui") {
-			ctx.ui.setEditorComponent((tui, theme, kb) => new KeywordEditor(tui, theme, kb));
-		}
-		for (const saved of discoverSaved(ctx.cwd).values()) {
-			if (saved.meta.name === "deep-research" || saved.meta.name === "workflows") continue;
-			pi.registerCommand(saved.meta.name, {
-				description: saved.meta.description,
-				handler: launch(saved.source),
-			});
-		}
-	});
+  pi.on("session_start", async (_event, ctx) => {
+    keywordState.dismissed = false;
+    if (ctx.mode === "tui") {
+      ctx.ui.setEditorComponent((tui, theme, kb) => new KeywordEditor(tui, theme, kb));
+    }
+    for (const saved of discoverSaved(ctx.cwd).values()) {
+      if (saved.meta.name === "deep-research" || saved.meta.name === "workflows") continue;
+      pi.registerCommand(saved.meta.name, {
+        description: saved.meta.description,
+        handler: launch(saved.source),
+      });
+    }
+  });
 
-	pi.on("input", async (event, ctx) => {
-		const invocation = event.text.match(/^\/((?:skill:)?recipe-[a-z0-9-]+)(?:\s|$)/)?.[1];
-		if (invocation) {
-			const command = pi.getCommands().find((command) => command.name === invocation);
-			const recipe = invocation.replace(/^skill:/, "");
-			const ownedPath = command?.source === "skill" ? join(skillsDir, recipe, "SKILL.md")
-				: command?.source === "prompt" ? join(promptsDir, `${recipe}.md`) : undefined;
-			// Names alone would also intercept another package's recipe or a user override.
-			if (ownedPath && command?.sourceInfo.path === ownedPath) {
-				const missing = unavailableRecipeTools(pi, ctx);
-				if (missing.length) {
-					const text = `Recipe ${recipe} not started. Missing, disabled or incompatible tools: ${missing.join(", ")}. Recipes require a compatible multi-agent executor (Pi Subagents 0.44.4+ with agent/task/label/tasks), pi-todo-list, pi-ask-question and pi-agent-browser-native search. Install or enable these integrations, then retry. Do not replace specialists or approval gates with inline work. Standalone scripted workflows remain available through the workflow tool.`;
-					pi.sendMessage({
-						customType: "recipe-unavailable",
-						content: [{ type: "text", text }],
-						display: true,
-						details: { recipe, missing },
-					}, { triggerTurn: false });
-					if (ctx.hasUI) ctx.ui.notify(text, "error");
-					else {
-						console.error(text);
-						// ponytail: SDK and print share exitCode; continuing embedders must consume the diagnostic and reset it.
-						process.exitCode = 1;
-					}
-					return { action: "handled" as const };
-				}
-			}
-		}
-		if (event.source !== "interactive") return { action: "continue" as const };
-		return { action: "transform" as const, text: decorateInput(event.text, sizeFor(ctx.cwd)) };
-	});
+  pi.on("input", async (event, ctx) => {
+    const invocation = event.text.match(/^\/((?:skill:)?recipe-[a-z0-9-]+)(?:\s|$)/)?.[1];
+    if (invocation) {
+      const command = pi.getCommands().find((command) => command.name === invocation);
+      const recipe = invocation.replace(/^skill:/, "");
+      const ownedPath =
+        command?.source === "skill"
+          ? join(skillsDir, recipe, "SKILL.md")
+          : command?.source === "prompt"
+            ? join(promptsDir, `${recipe}.md`)
+            : undefined;
+      // Names alone would also intercept another package's recipe or a user override.
+      if (ownedPath && command?.sourceInfo.path === ownedPath) {
+        const missing = unavailableRecipeTools(pi, ctx);
+        if (missing.length) {
+          const text = `Recipe ${recipe} not started. Missing, disabled or incompatible tools: ${missing.join(", ")}. Recipes require a compatible multi-agent executor (Pi Subagents 0.44.4+ with agent/task/label/tasks), pi-todo-list, pi-ask-question and pi-agent-browser-native search. Install or enable these integrations, then retry. Do not replace specialists or approval gates with inline work. Standalone scripted workflows remain available through the workflow tool.`;
+          pi.sendMessage(
+            {
+              customType: "recipe-unavailable",
+              content: [{ type: "text", text }],
+              display: true,
+              details: { recipe, missing },
+            },
+            { triggerTurn: false },
+          );
+          if (ctx.hasUI) ctx.ui.notify(text, "error");
+          else {
+            console.error(text);
+            // ponytail: SDK and print share exitCode; continuing embedders must consume the diagnostic and reset it.
+            process.exitCode = 1;
+          }
+          return { action: "handled" as const };
+        }
+      }
+    }
+    if (event.source !== "interactive") return { action: "continue" as const };
+    return { action: "transform" as const, text: decorateInput(event.text, sizeFor(ctx.cwd)) };
+  });
 
-	pi.on("session_shutdown", async () => {
-		for (const run of runs.values()) run.controller.abort();
-		// Shutdown is awaited before contexts become stale; finish owned child cleanup
-		// while paint/report callbacks still belong to this session.
-		await Promise.allSettled([...runs.values()].map(run => run.task));
-	});
+  pi.on("session_shutdown", async () => {
+    for (const run of runs.values()) run.controller.abort();
+    // Shutdown is awaited before contexts become stale; finish owned child cleanup
+    // while paint/report callbacks still belong to this session.
+    await Promise.allSettled([...runs.values()].map((run) => run.task));
+  });
 
-	pi.registerTool({
-		name: "workflow",
-		label: "Workflow",
-		description:
-			"Run a JavaScript workflow that orchestrates many worker agents via agent() and pipeline(). Use when the user asks to run a workflow, types use a workflow / run a workflow / ultracode, or the task needs more agents than one conversation can coordinate. Honor /workflow-size. Script is plain JavaScript with top-level await and export const meta = { name, description }. No import, require, fetch, or process. args is a global.",
-		parameters: Type.Object({
-			script: Type.String({ description: "Full workflow script including export const meta" }),
-			args: Type.Optional(Type.Unknown()),
-		}),
-		async execute(_id, params, signal, _onUpdate, ctx) {
-			try {
-				const decision = await askToRun(ctx, params.script);
-				if (!decision.ok) return { content: [{ type: "text", text: "User declined the workflow." }], details: undefined };
-				const run = startRun(pi, ctx, decision.script, params.args, runs);
-				if (signal?.aborted) run.controller.abort();
-				else if (signal) {
-					const abort = () => run.controller.abort();
-					signal.addEventListener("abort", abort, { once: true });
-					void run.task?.then(() => signal.removeEventListener("abort", abort), () => signal.removeEventListener("abort", abort));
-				}
-				return { content: [{ type: "text", text: `Started ${run.name} (${run.id}). Use /workflows to watch.` }], details: undefined };
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return { content: [{ type: "text", text: message }], isError: true, details: { error: message } };
-			}
-		},
-	});
+  pi.registerTool({
+    name: "workflow",
+    label: "Workflow",
+    description:
+      "Run a JavaScript workflow that orchestrates many worker agents via agent() and pipeline(). Use when the user asks to run a workflow, types use a workflow / run a workflow / ultracode, or the task needs more agents than one conversation can coordinate. Honor /workflow-size. Script is plain JavaScript with top-level await and export const meta = { name, description }. No import, require, fetch, or process. args is a global.",
+    parameters: Type.Object({
+      script: Type.String({ description: "Full workflow script including export const meta" }),
+      args: Type.Optional(Type.Unknown()),
+    }),
+    async execute(_id, params, signal, _onUpdate, ctx) {
+      try {
+        const decision = await askToRun(ctx, params.script);
+        if (!decision.ok)
+          return {
+            content: [{ type: "text", text: "User declined the workflow." }],
+            details: undefined,
+          };
+        const run = startRun(pi, ctx, decision.script, params.args, runs);
+        if (signal?.aborted) run.controller.abort();
+        else if (signal) {
+          const abort = () => run.controller.abort();
+          signal.addEventListener("abort", abort, { once: true });
+          void run.task?.then(
+            () => signal.removeEventListener("abort", abort),
+            () => signal.removeEventListener("abort", abort),
+          );
+        }
+        return {
+          content: [
+            { type: "text", text: `Started ${run.name} (${run.id}). Use /workflows to watch.` },
+          ],
+          details: undefined,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text", text: message }],
+          isError: true,
+          details: { error: message },
+        };
+      }
+    },
+  });
 }

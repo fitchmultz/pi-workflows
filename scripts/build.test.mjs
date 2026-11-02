@@ -3,20 +3,20 @@ import { test } from "node:test";
 import { transformContent } from "./build.mjs";
 
 test("transformContent maps harness identifiers", () => {
-	const out = transformContent(
-		"Use the Agent tool with subagent_type: \"workflows:task-executor\". AskUserQuestion, TaskCreate, WebSearch, MultiEdit, Glob, Grep, LS, Bash.",
-	);
-	assert.match(out, /subagent tool/);
-	assert.match(out, /agent: "task-executor"|agent": "task-executor"|task-executor/);
-	assert.doesNotMatch(out, /subagent_type/);
-	assert.doesNotMatch(out, /AskUserQuestion/);
-	assert.doesNotMatch(out, /TaskCreate/);
-	assert.doesNotMatch(out, /WebSearch/);
-	assert.doesNotMatch(out, /MultiEdit/);
+  const out = transformContent(
+    'Use the Agent tool with subagent_type: "workflows:task-executor". AskUserQuestion, TaskCreate, WebSearch, MultiEdit, Glob, Grep, LS, Bash.',
+  );
+  assert.match(out, /subagent tool/);
+  assert.match(out, /agent: "task-executor"|agent": "task-executor"|task-executor/);
+  assert.doesNotMatch(out, /subagent_type/);
+  assert.doesNotMatch(out, /AskUserQuestion/);
+  assert.doesNotMatch(out, /TaskCreate/);
+  assert.doesNotMatch(out, /WebSearch/);
+  assert.doesNotMatch(out, /MultiEdit/);
 });
 
 test("subagent call fields translate without rewriting metadata, nested input or model fields", () => {
-	const input = `---
+  const input = `---
 description: Recipe metadata
 ---
 Use the Agent tool:
@@ -52,17 +52,20 @@ prompt: business input
 model: another-model
 \`\`\`
 `;
-	const expected = input
-		.replace("Agent tool", "subagent tool")
-		.replace("subagent_type: workflows:investigator", "agent: investigator")
-		.replace('description: "Investigate problem"', 'label: "Investigate problem"')
-		.replace("prompt: |", "task: |")
-		.replace('`subagent_type`: "workflows:rule-advisor"', '`agent`: "rule-advisor"')
-		.replace('`description`: "Rule selection"', '`label`: "Rule selection"')
-		.replace('`prompt`: "Task:', '`task`: "Task:')
-		.replace('`subagent_type: "workflows-frontend:quality-fixer-frontend"`', '`agent: "quality-fixer-frontend"`')
-		.replace('`description: "Quality verification"`', '`label: "Quality verification"`')
-		.replace('`description`: "Fix review findings"', '`label`: "Fix review findings"')
-		.replace('`prompt`: "Apply fixes"', '`task`: "Apply fixes"');
-	assert.equal(transformContent(input), expected);
+  const expected = input
+    .replace("Agent tool", "subagent tool")
+    .replace("subagent_type: workflows:investigator", "agent: investigator")
+    .replace('description: "Investigate problem"', 'label: "Investigate problem"')
+    .replace("prompt: |", "task: |")
+    .replace('`subagent_type`: "workflows:rule-advisor"', '`agent`: "rule-advisor"')
+    .replace('`description`: "Rule selection"', '`label`: "Rule selection"')
+    .replace('`prompt`: "Task:', '`task`: "Task:')
+    .replace(
+      '`subagent_type: "workflows-frontend:quality-fixer-frontend"`',
+      '`agent: "quality-fixer-frontend"`',
+    )
+    .replace('`description: "Quality verification"`', '`label: "Quality verification"`')
+    .replace('`description`: "Fix review findings"', '`label`: "Fix review findings"')
+    .replace('`prompt`: "Apply fixes"', '`task`: "Apply fixes"');
+  assert.equal(transformContent(input), expected);
 });

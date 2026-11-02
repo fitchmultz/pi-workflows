@@ -10,20 +10,24 @@ A script declares a command name and description, uses top-level `await`, and re
 
 ```js
 export const meta = {
-  name: 'audit-routes',
-  description: 'Audit every route handler for missing auth checks',
-}
+  name: "audit-routes",
+  description: "Audit every route handler for missing auth checks",
+};
 
-const found = await agent('List every .ts file under src/routes/.', {
-  schema: { type: 'object', required: ['files'], properties: { files: { type: 'array', items: { type: 'string' } } } },
-})
-if (!found || !Array.isArray(found.files)) return 'Could not list route files.'
+const found = await agent("List every .ts file under src/routes/.", {
+  schema: {
+    type: "object",
+    required: ["files"],
+    properties: { files: { type: "array", items: { type: "string" } } },
+  },
+});
+if (!found || !Array.isArray(found.files)) return "Could not list route files.";
 
-const audits = await pipeline(found.files, file =>
+const audits = await pipeline(found.files, (file) =>
   agent(`Audit ${file} for missing authentication checks.`, { label: file }),
-)
+);
 
-return audits.filter(Boolean)
+return audits.filter(Boolean);
 ```
 
 `agent(prompt, options)` starts a fresh Pi CLI worker. `label` identifies it in run events; `schema` asks it for JSON. JSON is parsed, but the runtime does not validate the returned object against the schema. Handle missing fields and `null` results in your script.

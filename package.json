@@ -47,15 +47,23 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "node scripts/build.mjs --check",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint --deny-warnings .",
+    "lint:agent": "oxlint --deny-warnings --format=agent .",
+    "lint:fix": "oxlint --fix .",
     "test": "node --test scripts/*.test.mjs",
     "typecheck": "tsc --noEmit",
-    "check:compat": "npm run check && npm run typecheck && npm test"
+    "check:compat": "npm run check && npm run format:check && npm run typecheck && npm test"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.0.0",
     "@earendil-works/pi-tui": "1.0.0",
     "@types/node": "^24.13.3",
     "@xterm/headless": "6.0.0",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005",
     "typebox": "1.3.27",
     "typescript": "^6.0.3"
   },

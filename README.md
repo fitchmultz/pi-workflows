@@ -44,14 +44,14 @@ Recipe instructions then verify specialist profiles and provider/dialog readines
 
 Recipes use named agents and include approval points. Type `/recipe` to see recipe commands.
 
-| Task | Command |
-| --- | --- |
-| Plan a feature | `/recipe-design Add account recovery` |
+| Task                              | Command                                                 |
+| --------------------------------- | ------------------------------------------------------- |
+| Plan a feature                    | `/recipe-design Add account recovery`                   |
 | Build a backend or general change | `/recipe-implement Add rate limiting to the public API` |
-| Investigate a bug | `/recipe-diagnose Login returns 500 after deploy` |
-| Design frontend screens | `/recipe-front-design Add account recovery screens` |
-| Build a full-stack feature | `/recipe-fullstack-implement Add account recovery` |
-| Review a design | `/recipe-review docs/design/rate-limit.md` |
+| Investigate a bug                 | `/recipe-diagnose Login returns 500 after deploy`       |
+| Design frontend screens           | `/recipe-front-design Add account recovery screens`     |
+| Build a full-stack feature        | `/recipe-fullstack-implement Add account recovery`      |
+| Review a design                   | `/recipe-review docs/design/rate-limit.md`              |
 
 For frontend work, run `/recipe-front-design`. Next, run `/recipe-front-plan`. Then run `/recipe-front-build`.
 
@@ -67,12 +67,12 @@ The editor highlights the trigger phrase. Press Alt+W / Option+W to dismiss the 
 
 The terminal UI shows these choices before the script runs:
 
-| Choice | Action |
-| --- | --- |
-| Once | Run the script once. |
+| Choice | Action                                                       |
+| ------ | ------------------------------------------------------------ |
+| Once   | Run the script once.                                         |
 | Always | Skip future approval for this workflow name in this project. |
-| View | Read or edit the script. Then return to the approval card. |
-| Deny | Cancel the script before it runs. |
+| View   | Read or edit the script. Then return to the approval card.   |
+| Deny   | Cancel the script before it runs.                            |
 
 Run `/deep-research <question>` to use the bundled research script.
 

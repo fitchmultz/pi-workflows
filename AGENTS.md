@@ -1,3 +1,7 @@
+# Quality standard and acceptance
+
+This repository follows [docs/standards/strict-oxlint-oxfmt-engineering-standard.md](docs/standards/strict-oxlint-oxfmt-engineering-standard.md) for linting, formatting, typechecking, and verification. The normal acceptance command is `npm run check:compat`. Relaxing any applicable check requires a recorded, evidence-based quality exception in that adopted standard copy; never disable a rule, weaken an option, raise a limit, or add a directive without one.
+
 # Dependency maintenance
 
 - Frequently review and proactively update maintained packages and all runtime,
