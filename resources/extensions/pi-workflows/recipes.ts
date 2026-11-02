@@ -3,26 +3,23 @@ import { isRecord } from "./guards.ts";
 
 export const RECIPE_TOOLS = ["subagent", "todo_list", "ask_question", "agent_browser_web_search"];
 
-function collectInactive(data: unknown, deferred: Set<string>): void {
+/** Each valid inactive array replaces earlier arrays; nonstring members are filtered. */
+function latestInactive(data: unknown, previous: Set<string>): Set<string> {
   if (!isRecord(data) || !Array.isArray(data.inactive)) {
-    return;
+    return previous;
   }
-  for (const name of data.inactive) {
-    if (typeof name === "string") {
-      deferred.add(name);
-    }
-  }
+  return new Set(data.inactive.filter((name): name is string => typeof name === "string"));
 }
 
 function deferredRecipeTools(pi: ExtensionAPI, ctx: ExtensionContext): Set<string> {
-  const deferred = new Set<string>();
+  let deferred = new Set<string>();
   if (!pi.getActiveTools().includes("discover_tools")) {
     return deferred;
   }
   // ponytail: input precedes native deferral retirement; recipe preflight is the final capability check.
   for (const entry of ctx.sessionManager.getBranch()) {
     if (entry.type === "custom" && entry.customType === "pi:instruction-groups") {
-      collectInactive(entry.data, deferred);
+      deferred = latestInactive(entry.data, deferred);
     }
   }
   return deferred;

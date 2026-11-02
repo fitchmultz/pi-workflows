@@ -268,7 +268,15 @@ function createScheduler(hooks: RunHooks): Scheduler {
       return null;
     }
     live++;
-    return settle(id, hooks.agent(prompt, opts));
+    // A synchronous hook throw must reach settle's failure path (null result,
+    // released slot) exactly as a rejected promise did before this split.
+    let task: Promise<unknown>;
+    try {
+      task = hooks.agent(prompt, opts);
+    } catch {
+      task = Promise.reject(new Error("agent hook threw synchronously"));
+    }
+    return settle(id, task);
   };
 
   const tracked = trackPending(pending, callAgent);

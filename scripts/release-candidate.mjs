@@ -165,8 +165,11 @@ function asRelease(value) {
         ...asHostFacts(hosts.fork, "release.hosts.fork"),
         provenance: {
           ref: asString(
-            asRecord(hosts.fork, "release.hosts.fork").provenance,
-            "release.hosts.fork.provenance",
+            asRecord(
+              asRecord(hosts.fork, "release.hosts.fork").provenance,
+              "release.hosts.fork.provenance",
+            ).ref,
+            "release.hosts.fork.provenance.ref",
           ),
         },
       },
