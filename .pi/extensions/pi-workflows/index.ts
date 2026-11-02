@@ -197,9 +197,17 @@ function formatReport(run: Run): string {
   return `Workflow ${run.name} finished.\n\n${body}`;
 }
 
-/** A recipe command this package itself owns (never another package's or a user override). */
-function ownedRecipe(pi: ExtensionAPI, recipe: string): SlashCommandInfo | undefined {
-  const command = pi.getCommands().find((info) => info.name === recipe);
+/**
+ * A recipe command this package itself owns (never another package's or a user override).
+ * Skill commands keep the `skill:` prefix in their registered name, so match the full
+ * invocation; the bare name would instead find the same-named prompt, or nothing.
+ */
+function ownedRecipe(
+  pi: ExtensionAPI,
+  invocation: string,
+  recipe: string,
+): SlashCommandInfo | undefined {
+  const command = pi.getCommands().find((info) => info.name === invocation);
   if (command === undefined) {
     return undefined;
   }
@@ -420,7 +428,7 @@ function registerSessionHandlers(pi: ExtensionAPI, runs: Map<string, Run>): void
     const invocation = event.text.match(/^\/((?:skill:)?recipe-[a-z0-9-]+)(?:\s|$)/)?.[1];
     if (invocation !== undefined) {
       const recipe = invocation.replace(/^skill:/, "");
-      if (ownedRecipe(pi, recipe) !== undefined) {
+      if (ownedRecipe(pi, invocation, recipe) !== undefined) {
         const missing = unavailableRecipeTools(pi, ctx);
         if (missing.length > 0) {
           denyRecipe(pi, ctx, recipe, missing);
