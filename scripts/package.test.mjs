@@ -586,7 +586,7 @@ nodeTest(
         .split("\n")
         .filter((line) => /^\s+- /.test(line))
         .join("\n");
-      assert.match(legacyReasons, /unexpected property|must not have additional properties/i);
+      assert.match(legacyReasons, /unknown field/i);
       assert.match(legacyReasons, /^\s+- (description|prompt): /m);
       assert.equal(requests.filter((request) => request.model === "worker").length, 0);
       if (process.platform === "win32") {

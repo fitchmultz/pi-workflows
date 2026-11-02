@@ -983,7 +983,7 @@ Records for this repository's adoption of the standard above. Update these recor
 ### Adoption record
 
 - Repository: `fitchmultz/pi-workflows`; adopted standard version: 5.1.2 (this file, formatted with Oxfmt; byte-identical to the released 5.1.2 text apart from this appendix).
-- Supported runtime and package manager: Node 24 with npm and a committed lockfile; Pi 1.0.0 floor per `docs/development.md`.
+- Supported runtime and package manager: Node 24 with npm and a committed lockfile; Pi 1.5.0 floor per `docs/development.md`.
 - Installed toolchain: oxlint 1.90.0, oxlint-tsgolint 7.0.2005, Oxfmt 0.75.0, TypeScript 6.0.3 (`tsc --noEmit`), `@types/node` 24.13.6.
 - Configuration paths: `.oxlintrc.json` (Appendix A baseline plus the ignore mappings below), `.oxfmtrc.json` (Section 7.1 defaults plus ignore mappings).
 - Acceptance paths: `npm run check:compat` aggregates generated-asset freshness (`npm run check`), formatting (`npm run format:check`), native lint (`npm run lint`), the canonical compiler project (`npm run typecheck`), and the Node test suite (`npm test`). Hosted CI runs this contract through the shared Pi-compatibility workflow on pushes to `main` and pull requests, and the release qualification lane reruns it on release candidates.

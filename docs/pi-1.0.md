@@ -2,7 +2,7 @@
 
 ## Scope and decisions
 
-This is both a project-local `.pi` recipes/skills/agents/script kit and the public `@fitchmultz/pi-workflows` Pi package, not an AgentHarness rewrite. Pi 1.0.0 is the supported floor. Git installs and project use remain supported; the unscoped npm name belongs to an unrelated project and is never published here. Installed recipe profiles require `@fitchmultz/pi-subagents` 0.44.4+ and the package's `subagents.agents` manifest. Preserve project/user resources and live runtime/settings/auth during qualification.
+This is both a project-local `.pi` recipes/skills/agents/script kit and the public `@fitchmultz/pi-workflows` Pi package, not an AgentHarness rewrite. Pi 1.5.0 is the supported floor. Git installs and project use remain supported; the unscoped npm name belongs to an unrelated project and is never published here. Installed recipe profiles require `@fitchmultz/pi-subagents` 0.44.4+ and the package's `subagents.agents` manifest. Preserve project/user resources and live runtime/settings/auth during qualification.
 
 The canonical recipe sources are `reference/workflows` plus `scripts/build.mjs`; generated `.pi/{skills,agents,prompts}` and public `resources/` must only change through regeneration. The public runtime is copied from `.pi/extensions/pi-workflows`; its relative asset lookup resolves the public sibling resource trees. Private project state is not copied. Roles, task evidence, fresh child context and approval gates are unchanged. The scripted worker remains a JSON CLI child with explicit `--no-session`, `--no-approve`, disabled extension/skill/template discovery and the existing tool allowlist. It does not inherit recipe agent roles or become a new SDK worker engine.
 
@@ -14,11 +14,11 @@ Trusted local scripts have the existing runtime ceiling: Node vm plus lexical re
 
 ## Exact source
 
-Official v1.0.0 source: [`a13d35a742c6ef8462812a28fbe1d8c8b7431c32`](https://github.com/earendil-works/pi/tree/a13d35a742c6ef8462812a28fbe1d8c8b7431c32). Inspect `packages/coding-agent/{docs/{sdk,cli-integration,json,extensions,tui}.md,src/{core/{sdk,agent-session,agent-session-runtime}.ts,modes/{print-mode.ts,rpc/rpc-mode.ts}}}` and `packages/tui` component/keybinding contracts. Agent-core 1.0 removed experimental harness/session/storage exports; this kit never imported them. Public session/boundary APIs mostly predate 1.0; fullscreen is now the default.
+Official v1.5.0 source: [`f9a26365568127461c47a07a37dcb42c140a3ac5`](https://github.com/earendil-works/pi/tree/f9a26365568127461c47a07a37dcb42c140a3ac5). Inspect `packages/coding-agent/{docs/{sdk,cli-integration,json,extensions,tui}.md,src/{core/{sdk,agent-session,agent-session-runtime}.ts,modes/{print-mode.ts,rpc/rpc-mode.ts}}}` and `packages/tui` component/keybinding contracts. Agent-core 1.0 removed experimental harness/session/storage exports; this kit never imported them. Public session/boundary APIs mostly predate 1.0; fullscreen is now the default.
 
-Qualification uses public `dist/index.js` and actual manifest-bin `dist/bundle/cli.js`, the complete eight-package 1.0.0 cohort and TypeBox 1.3.27, under physical Node 24.21.0. Resolve nested companions from the selected host graph. Set selected `PI_PACKAGE_DIR` explicitly; an inherited older fork override can make even an absolute official CLI load another resource root. Use an allowlisted environment and isolated HOME/agentDir/project, never reload this project's auto-discovered extensions into an operator session.
+Qualification uses public `dist/index.js` and actual manifest-bin `dist/bundle/cli.js`, the complete eight-package 1.5.0 cohort and TypeBox 1.3.27, under the Node 24 release used by CI. Resolve nested companions from the selected host graph. Set selected `PI_PACKAGE_DIR` explicitly; an inherited older fork override can make even an absolute official CLI load another resource root. Use an allowlisted environment and isolated HOME/agentDir/project, never reload this project's auto-discovered extensions into an operator session.
 
-The maintained fork starts from official 1.0 and keeps only restart/background_command/discover_tools/Read JSON/compactView. This kit needs none of those optional additions and does not require dropped checkpoint/metadata/usage/publisher/TUI/RPC APIs. Candidate-specific qualification is not claimed before an exact built artifact is available.
+The maintained fork tracks official Pi and adds optional seams such as restart, background commands, instruction groups and compactView. This kit needs none of those optional additions and does not require dropped checkpoint/metadata/usage/publisher/TUI/RPC APIs. Candidate-specific qualification is not claimed before an exact built artifact is available.
 
 ## Repeatable checks
 
@@ -35,6 +35,6 @@ Normal checks need no paid model. Native tests copy project assets into an isola
 
 `node --test scripts/ui.test.mjs` also runs the actual `KeywordEditor` through native `TuiMainScreen` and `TuiAltScreen`, using xterm's headless terminal backend (the same backend as Pi's virtual terminal). It checks focused/unfocused cursor markers, CJK column positioning, keyword highlighting without style bleed, and hardware cursor off → on → off.
 
-Marker-aware hosts exposing `renderFakeCursor` must suppress the focused fake cursor when the hardware cursor is visible; older supported hosts retain their existing inverse-video cursor. Only the cursor cell changes: the workflow phrase must stay highlighted. The test detects the optional public helper through the module namespace, with no static named import requiring it on official 1.1.0 or the c2031 fork.
+Pi suppresses the focused fake cursor when the hardware cursor is visible. Only the cursor cell changes: the workflow phrase must stay highlighted.
 
 These tests use the SDK/TUI graph selected by the shared compatibility runner. A separate check using exact upstream source for `CustomEditor` and TUI is source-only evidence, not qualification of a complete built SDK, bundled CLI, live terminal or IME. Test/development-only coverage does not require a runtime release or version bump.
