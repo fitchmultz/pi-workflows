@@ -1,4 +1,5 @@
 import vm from "node:vm";
+import { isRecord } from "./guards.ts";
 
 export const MAX_CONCURRENT = 16;
 export const MAX_AGENTS = 1000;
@@ -18,7 +19,7 @@ export type WorkflowMeta = {
 };
 
 export type RunEvent =
-  | { type: "agent_start"; id: number; label?: string }
+  | { type: "agent_start"; id: number; label?: string | undefined }
   | { type: "agent_end"; id: number; ok: boolean }
   | { type: "done"; ok: boolean };
 
@@ -34,7 +35,7 @@ export type RunHooks = {
 export type RunResult = {
   ok: boolean;
   value?: unknown;
-  error?: string;
+  error?: string | undefined;
   started: number[];
   finished: Map<number, unknown>;
 };
@@ -44,17 +45,22 @@ const BANNED =
   /\bimport\s*(?:\(|[\w{*'"])|\brequire\s*\(|\bprocess\b|\bDeno\b|\bBun\b|\bfetch\s*\(|\bFunction\s*\(|\beval\s*\(/;
 
 export function parseMeta(source: string): WorkflowMeta {
-  const match = source.match(META_RE);
-  if (!match)
+  const captured = source.match(META_RE)?.[1];
+  if (captured === undefined) {
     throw new Error("workflow script must start with export const meta = { name, description }");
-  const meta = vm.runInNewContext(`(${match[1]})`, Object.create(null)) as Partial<WorkflowMeta>;
-  if (typeof meta.name !== "string" || !/^[a-z][a-z0-9-]*$/.test(meta.name)) {
+  }
+  // The captured group is a parenthesized object literal, so the evaluated value is
+  // always an object or a vm SyntaxError; the guard only satisfies the compiler.
+  const meta: unknown = vm.runInNewContext(`(${captured})`, { __proto__: null });
+  const name = isRecord(meta) ? meta.name : undefined;
+  const description = isRecord(meta) ? meta.description : undefined;
+  if (typeof name !== "string" || !/^[a-z][a-z0-9-]*$/.test(name)) {
     throw new Error("meta.name must be a lowercase hyphenated command name");
   }
-  if (typeof meta.description !== "string" || !meta.description.trim()) {
+  if (typeof description !== "string" || description.trim() === "") {
     throw new Error("meta.description is required");
   }
-  return { name: meta.name, description: meta.description.trim() };
+  return { name, description: description.trim() };
 }
 
 export function scriptBody(source: string): string {
@@ -71,6 +77,12 @@ export function firstUnfinished(started: number[], finished: Set<number>): numbe
   return started.find((id) => !finished.has(id));
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export async function mapPool<T, R>(
   items: T[],
   fn: (item: T, index: number) => Promise<R>,
@@ -78,12 +90,15 @@ export async function mapPool<T, R>(
 ): Promise<R[]> {
   const limit = Math.max(1, Math.min(concurrency, MAX_CONCURRENT));
   const out: R[] = Array.from({ length: items.length });
-  let next = 0;
+  const queue = items.entries();
   async function worker() {
     for (;;) {
-      const i = next++;
-      if (i >= items.length) return;
-      out[i] = await fn(items[i], i);
+      const next = queue.next();
+      if (next.done === true) {
+        return;
+      }
+      const [index, item] = next.value;
+      out[index] = await fn(item, index);
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
@@ -93,79 +108,191 @@ export async function mapPool<T, R>(
 export function parseJsonResult(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const raw = (fenced?.[1] ?? text).trim();
-  const start = raw.search(/[\[{]/);
-  if (start < 0) throw new Error("expected JSON");
-  return JSON.parse(raw.slice(start));
+  const start = raw.search(/[[{]/);
+  if (start < 0) {
+    throw new Error("expected JSON");
+  }
+  const value: unknown = JSON.parse(raw.slice(start));
+  return value;
 }
 
 export function coerceResult(text: string, schema?: JsonSchema): unknown {
   const trimmed = text.trim();
-  if (!trimmed) return null;
+  if (trimmed === "") {
+    return null;
+  }
   try {
     return parseJsonResult(trimmed);
   } catch (error) {
-    if (schema) throw error;
+    if (schema) {
+      throw error;
+    }
     return trimmed;
   }
 }
 
-export async function runWorkflow(source: string, hooks: RunHooks): Promise<RunResult> {
+const SANDBOX_GLOBALS = {
+  JSON,
+  Math,
+  Date,
+  Array,
+  Object,
+  Map,
+  Set,
+  Promise,
+  Number,
+  String,
+  Boolean,
+  RegExp,
+  Error,
+  TypeError,
+  RangeError,
+  parseInt,
+  parseFloat,
+  isNaN,
+  isFinite,
+  undefined,
+  Infinity,
+  NaN,
+  Intl,
+  URL,
+  URLSearchParams,
+};
+
+type Scheduler = {
+  agent: AgentFn;
+  pipeline: <T>(items: T[], fn: (item: T, index: number) => Promise<unknown>) => Promise<unknown[]>;
+  drain: () => Promise<void>;
+  started: number[];
+  finished: Map<number, unknown>;
+};
+
+function emitStart(hooks: RunHooks, id: number, opts: AgentOpts | undefined): void {
+  hooks.onEvent?.({ type: "agent_start", id, label: opts?.label });
+}
+
+function emitEnd(hooks: RunHooks, id: number, ok: boolean): void {
+  hooks.onEvent?.({ type: "agent_end", id, ok });
+}
+
+function trackPending(pending: Set<Promise<unknown>>, callAgent: AgentFn): AgentFn {
+  return (prompt, opts) => {
+    const task = callAgent(prompt, opts);
+    pending.add(task);
+    void task.then(
+      () => {
+        pending.delete(task);
+      },
+      () => {
+        pending.delete(task);
+      },
+    );
+    return task;
+  };
+}
+
+async function drainPending(pending: Set<Promise<unknown>>): Promise<void> {
+  while (pending.size > 0) {
+    await Promise.allSettled(pending);
+  }
+}
+
+function makePipeline(): Scheduler["pipeline"] {
+  return async <T>(items: T[], fn: (item: T, index: number) => Promise<unknown>) =>
+    mapPool(Array.isArray(items) ? items : [], fn);
+}
+
+function createScheduler(hooks: RunHooks): Scheduler {
   const started: number[] = [];
   const finished = new Map<number, unknown>();
-  let nextId = 0;
-  let live = 0;
+  const pending = new Set<Promise<unknown>>();
   const replayThrough = hooks.replayThrough ?? -1;
   const cache = hooks.cache ?? [];
+  let nextId = 0;
+  let live = 0;
+  const isAborted = (): boolean => hooks.signal?.aborted === true;
 
-  const pending = new Set<Promise<unknown>>();
-  const callAgent: AgentFn = async (prompt, opts) => {
-    if (hooks.signal?.aborted) return null;
-    const id = nextId++;
-    if (id >= MAX_AGENTS) throw new Error(`workflow exceeded ${MAX_AGENTS} agents`);
-    started.push(id);
-    hooks.onEvent?.({ type: "agent_start", id, label: opts?.label });
-    if (id <= replayThrough && id < cache.length) {
-      finished.set(id, cache[id]);
-      hooks.onEvent?.({ type: "agent_end", id, ok: true });
-      return cache[id];
-    }
+  const awaitSlot = async (): Promise<boolean> => {
+    // QX-002 (no-unmodified-loop-condition): `live` is a shared slot counter that
+    // sibling agent tasks decrement between awaits; the 10ms poll is the limiter's
+    // wakeup mechanism. An event-driven semaphore would change wakeup timing, so
+    // the bounded poll is retained. See the quality-exception record.
+    // oxlint-disable-next-line no-unmodified-loop-condition
     while (live >= MAX_CONCURRENT) {
-      await new Promise((r) => setTimeout(r, 10));
-      if (hooks.signal?.aborted) return null;
+      await sleep(10);
+      if (isAborted()) {
+        return false;
+      }
     }
-    live++;
+    return true;
+  };
+
+  const settle = async (id: number, task: Promise<unknown>): Promise<unknown> => {
     try {
-      const value = await hooks.agent(prompt, opts);
-      if (hooks.signal?.aborted) return null;
+      const value: unknown = await task;
+      if (isAborted()) {
+        return null;
+      }
       finished.set(id, value);
-      hooks.onEvent?.({ type: "agent_end", id, ok: value !== null });
+      emitEnd(hooks, id, value !== null);
       return value;
     } catch {
-      if (hooks.signal?.aborted) return null;
+      if (isAborted()) {
+        return null;
+      }
       finished.set(id, null);
-      hooks.onEvent?.({ type: "agent_end", id, ok: false });
+      emitEnd(hooks, id, false);
       return null;
     } finally {
       live--;
     }
   };
 
-  const agent: AgentFn = (prompt, opts) => {
-    const task = callAgent(prompt, opts);
-    pending.add(task);
-    void task.then(
-      () => pending.delete(task),
-      () => pending.delete(task),
-    );
-    return task;
-  };
-  const drain = async () => {
-    while (pending.size) await Promise.allSettled([...pending]);
+  const callAgent: AgentFn = async (prompt, opts) => {
+    if (isAborted()) {
+      return null;
+    }
+    const id = nextId++;
+    if (id >= MAX_AGENTS) {
+      throw new Error(`workflow exceeded ${MAX_AGENTS} agents`);
+    }
+    started.push(id);
+    emitStart(hooks, id, opts);
+    if (id <= replayThrough && id < cache.length) {
+      finished.set(id, cache[id]);
+      emitEnd(hooks, id, true);
+      return cache[id];
+    }
+    const slot = await awaitSlot();
+    if (!slot) {
+      return null;
+    }
+    live++;
+    // A synchronous hook throw must reach settle's failure path (null result,
+    // released slot) exactly as a rejected promise did before this split.
+    let task: Promise<unknown>;
+    try {
+      task = hooks.agent(prompt, opts);
+    } catch {
+      task = Promise.reject(new Error("agent hook threw synchronously"));
+    }
+    return settle(id, task);
   };
 
-  const pipeline = async <T>(items: T[], fn: (item: T, index: number) => Promise<unknown>) =>
-    mapPool(Array.isArray(items) ? items : [], fn);
+  const tracked = trackPending(pending, callAgent);
+  return {
+    // Wrapped in an arrow so the source never reads as a literal
+    // `agent: <name>` pi-subagents profile reference (see build-check.mjs).
+    agent: (prompt, opts) => tracked(prompt, opts),
+    pipeline: makePipeline(),
+    drain: () => drainPending(pending),
+    started,
+    finished,
+  };
+}
 
+export async function runWorkflow(source: string, hooks: RunHooks): Promise<RunResult> {
+  const scheduler = createScheduler(hooks);
   try {
     assertScriptSafe(source);
     const meta = parseMeta(source);
@@ -174,45 +301,21 @@ export async function runWorkflow(source: string, hooks: RunHooks): Promise<RunR
     // ponytail: trusted local scripts, not a security sandbox or CPU deadline.
     // Use an isolated bounded runtime if untrusted scripts become supported.
     const context = vm.createContext({
-      agent,
-      pipeline,
+      agent: (prompt: string, opts?: AgentOpts) => scheduler.agent(prompt, opts),
+      pipeline: scheduler.pipeline,
       args: hooks.args,
       meta,
-      JSON,
-      Math,
-      Date,
-      Array,
-      Object,
-      Map,
-      Set,
-      Promise,
-      Number,
-      String,
-      Boolean,
-      RegExp,
-      Error,
-      TypeError,
-      RangeError,
-      parseInt,
-      parseFloat,
-      isNaN,
-      isFinite,
-      undefined,
-      Infinity,
-      NaN,
-      Intl,
-      URL,
-      URLSearchParams,
+      ...SANDBOX_GLOBALS,
     });
-    const value = await vm.runInContext(`(async () => {\n${body}\n})()`, context);
-    await drain();
+    const value: unknown = await vm.runInContext(`(async () => {\n${body}\n})()`, context);
+    await scheduler.drain();
     hooks.signal?.throwIfAborted();
     hooks.onEvent?.({ type: "done", ok: true });
-    return { ok: true, value, started, finished };
+    return { ok: true, value, started: scheduler.started, finished: scheduler.finished };
   } catch (error) {
-    await drain();
+    await scheduler.drain();
     const message = error instanceof Error ? error.message : String(error);
     hooks.onEvent?.({ type: "done", ok: false });
-    return { ok: false, error: message, started, finished };
+    return { ok: false, error: message, started: scheduler.started, finished: scheduler.finished };
   }
 }

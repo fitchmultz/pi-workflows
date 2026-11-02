@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test as nodeTest } from "node:test";
 import {
   assertScriptSafe,
   coerceResult,
@@ -20,13 +20,13 @@ const audits = await pipeline(found.files, (file) => agent('audit ' + file, { la
 return audits.filter(Boolean)
 `;
 
-test("parseMeta reads name and description", () => {
+nodeTest("parseMeta reads name and description", () => {
   const meta = parseMeta(SCRIPT);
   assert.equal(meta.name, "audit-routes");
   assert.equal(meta.description, "Audit route handlers");
 });
 
-test("assertScriptSafe rejects import and process", () => {
+nodeTest("assertScriptSafe rejects import and process", () => {
   assert.throws(() =>
     assertScriptSafe("export const meta = { name: 'x', description: 'd' }\nimport('fs')"),
   );
@@ -35,13 +35,16 @@ test("assertScriptSafe rejects import and process", () => {
   );
 });
 
-test("runWorkflow calls agent and pipeline", async () => {
+nodeTest("runWorkflow calls agent and pipeline", async () => {
+  /** @type {string[]} */
   const prompts = [];
   const result = await runWorkflow(SCRIPT, {
     args: { root: "src" },
     async agent(prompt) {
       prompts.push(prompt);
-      if (prompt === "list") return { files: ["a.ts", "b.ts"] };
+      if (prompt === "list") {
+        return { files: ["a.ts", "b.ts"] };
+      }
       return { file: prompt.replace("audit ", "") };
     },
   });
@@ -50,7 +53,7 @@ test("runWorkflow calls agent and pipeline", async () => {
   assert.deepEqual(prompts, ["list", "audit a.ts", "audit b.ts"]);
 });
 
-test("runWorkflow returns null from a failed agent", async () => {
+nodeTest("runWorkflow returns null from a failed agent", async () => {
   const result = await runWorkflow(
     `export const meta = { name: 'x', description: 'd' }\nreturn await agent('boom')`,
     {
@@ -63,7 +66,8 @@ test("runWorkflow returns null from a failed agent", async () => {
   assert.equal(result.value, null);
 });
 
-test("resume replays cached agents then continues", async () => {
+nodeTest("resume replays cached agents then continues", async () => {
+  /** @type {string[]} */
   const prompts = [];
   const result = await runWorkflow(
     `export const meta = { name: 'x', description: 'd' }
@@ -83,16 +87,18 @@ return [a, b]`,
   assert.deepEqual(prompts, ["two"]);
 });
 
-test("firstUnfinished is the first started id without a result", () => {
+nodeTest("firstUnfinished is the first started id without a result", () => {
   assert.equal(firstUnfinished([0, 1, 2], new Set([0])), 1);
   assert.equal(firstUnfinished([0, 1], new Set([0, 1])), undefined);
 });
 
-test("mapPool preserves order", async () => {
+nodeTest("mapPool preserves order", async () => {
   const out = await mapPool(
     [3, 2, 1],
     async (n) => {
-      await new Promise((r) => setTimeout(r, n));
+      await new Promise((r) => {
+        setTimeout(r, n);
+      });
       return n * 10;
     },
     2,
@@ -100,42 +106,52 @@ test("mapPool preserves order", async () => {
   assert.deepEqual(out, [30, 20, 10]);
 });
 
-test("coerceResult parses JSON or keeps text", () => {
+nodeTest("coerceResult parses JSON or keeps text", () => {
   assert.deepEqual(coerceResult('```json\n{"a":1}\n```'), { a: 1 });
   assert.equal(coerceResult("hello"), "hello");
   assert.throws(() => coerceResult("hello", { type: "object" }));
 });
 
-test("workflow completion waits for started workers even when the script omits await", async () => {
-  let release;
-  let started;
-  const began = new Promise((resolve) => {
-    started = resolve;
-  });
-  const worker = new Promise((resolve) => {
-    release = resolve;
-  });
-  let returned = false;
-  const result = runWorkflow(
-    `export const meta = { name: 'x', description: 'd' }\nagent('one'); return 'result'`,
-    {
-      agent() {
-        started();
-        return worker;
+nodeTest(
+  "workflow completion waits for started workers even when the script omits await",
+  async () => {
+    /** @param {unknown} [_value] */
+    const noop = (_value) => {
+      // placeholder until the Promise executor assigns the real resolver
+    };
+    let release = noop;
+    let started = noop;
+    const began = new Promise((resolve) => {
+      started = resolve;
+    });
+    const worker = new Promise((resolve) => {
+      release = resolve;
+    });
+    let returned = false;
+    const result = runWorkflow(
+      `export const meta = { name: 'x', description: 'd' }\nagent('one'); return 'result'`,
+      {
+        agent() {
+          started();
+          return worker;
+        },
       },
-    },
-  );
-  void result.then(() => {
-    returned = true;
-  });
-  await began;
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(returned, false);
-  release("finished");
-  assert.equal((await result).finished.get(0), "finished");
-});
+    );
+    const settled = result.finally(() => {
+      returned = true;
+    });
+    await began;
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+    assert.equal(returned, false);
+    release("finished");
+    assert.equal((await result).finished.get(0), "finished");
+    await settled;
+  },
+);
 
-test("aborted agent is unfinished so resume reruns it", async () => {
+nodeTest("aborted agent is unfinished so resume reruns it", async () => {
   const controller = new AbortController();
   const result = await runWorkflow(
     `export const meta = { name: 'x', description: 'd' }\nreturn await agent('one')`,

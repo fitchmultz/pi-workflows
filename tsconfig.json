@@ -4,10 +4,21 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": true,
     "strict": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedSideEffectImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "noCheck": false,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "lib": ["ES2023"]
   },
-  "include": [".pi/extensions/**/*.ts"]
+  "include": [".pi/extensions/**/*.ts", "scripts/**/*.mjs", "scripts/**/*.d.ts"]
 }

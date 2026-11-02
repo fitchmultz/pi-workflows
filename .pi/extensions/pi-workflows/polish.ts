@@ -21,12 +21,13 @@ export const keywordState = { dismissed: false };
 
 export function parseSize(raw: string | undefined): Size | undefined {
   const value = raw?.trim().toLowerCase();
-  return SIZES.includes(value as Size) ? (value as Size) : undefined;
+  return SIZES.find((size) => size === value);
 }
 
 export function sizeAdvice(size: Size): string {
-  if (size === "unrestricted")
+  if (size === "unrestricted") {
     return "Size guideline: unrestricted. Size the workflow to the task.";
+  }
   return `Size guideline: ${size} (${SIZE_HINT[size]}).`;
 }
 
@@ -36,9 +37,13 @@ export function findKeyword(text: string): string | undefined {
 
 export function loadSize(root: string, flag?: string): Size {
   const fromFlag = parseSize(flag);
-  if (fromFlag) return fromFlag;
+  if (fromFlag !== undefined) {
+    return fromFlag;
+  }
   const file = join(root, ".pi", "workflow-size");
-  if (!existsSync(file)) return "medium";
+  if (!existsSync(file)) {
+    return "medium";
+  }
   return parseSize(readFileSync(file, "utf8")) ?? "medium";
 }
 
@@ -52,7 +57,9 @@ export function saveSize(root: string, size: Size): string {
 
 export function isAllowed(root: string, name: string): boolean {
   const file = join(root, ".pi", "workflow-allow");
-  if (!existsSync(file)) return false;
+  if (!existsSync(file)) {
+    return false;
+  }
   return readFileSync(file, "utf8")
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -60,7 +67,9 @@ export function isAllowed(root: string, name: string): boolean {
 }
 
 export function allow(root: string, name: string): void {
-  if (isAllowed(root, name)) return;
+  if (isAllowed(root, name)) {
+    return;
+  }
   const dir = join(root, ".pi");
   mkdirSync(dir, { recursive: true });
   const file = join(dir, "workflow-allow");
@@ -69,8 +78,14 @@ export function allow(root: string, name: string): void {
 }
 
 export function decorateInput(text: string, size: Size): string {
-  if (keywordState.dismissed) return text;
-  if (!findKeyword(text) || text.trimStart().startsWith("/")) return text;
-  if (text.includes(STEER)) return text;
+  if (keywordState.dismissed) {
+    return text;
+  }
+  if (findKeyword(text) === undefined || text.trimStart().startsWith("/")) {
+    return text;
+  }
+  if (text.includes(STEER)) {
+    return text;
+  }
   return `${text}\n\n${STEER}\n${sizeAdvice(size)}`;
 }

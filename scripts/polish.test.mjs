@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test as nodeTest } from "node:test";
 import {
   allow,
   decorateInput,
@@ -16,21 +16,21 @@ import {
   STEER,
 } from "../.pi/extensions/pi-workflows/polish.ts";
 
-test("findKeyword matches the trigger phrases", () => {
+nodeTest("findKeyword matches the trigger phrases", () => {
   assert.equal(findKeyword("please use a workflow to audit routes"), "use a workflow");
   assert.equal(findKeyword("run a workflow on these files"), "run a workflow");
   assert.equal(findKeyword("ultracode: check auth"), "ultracode");
   assert.equal(findKeyword("just implement the button"), undefined);
 });
 
-test("parseSize and sizeAdvice", () => {
+nodeTest("parseSize and sizeAdvice", () => {
   assert.equal(parseSize("MEDIUM"), "medium");
   assert.equal(parseSize("nope"), undefined);
   assert.match(sizeAdvice("small"), /5/);
   assert.match(sizeAdvice("unrestricted"), /unrestricted/);
 });
 
-test("loadSize defaults to medium and honors the project file", (t) => {
+nodeTest("loadSize defaults to medium and honors the project file", (t) => {
   const root = mkdtempSync(join(tmpdir(), "wf-size-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   assert.equal(loadSize(root), "medium");
@@ -40,7 +40,7 @@ test("loadSize defaults to medium and honors the project file", (t) => {
   assert.equal(readFileSync(join(root, ".pi", "workflow-size"), "utf8").trim(), "large");
 });
 
-test("allow list is project-local", (t) => {
+nodeTest("allow list is project-local", (t) => {
   const root = mkdtempSync(join(tmpdir(), "wf-allow-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   assert.equal(isAllowed(root, "audit-routes"), false);
@@ -48,7 +48,7 @@ test("allow list is project-local", (t) => {
   assert.equal(isAllowed(root, "audit-routes"), true);
 });
 
-test("decorateInput only steers keyword prompts", () => {
+nodeTest("decorateInput only steers keyword prompts", () => {
   keywordState.dismissed = false;
   const plain = decorateInput("fix the typo", "medium");
   assert.equal(plain, "fix the typo");

@@ -137,7 +137,13 @@
         "checkThenables": true,
         "ignoreIIFE": false,
         "ignoreVoid": false,
-        "allowForKnownSafeCalls": [],
+        "allowForKnownSafeCalls": [
+          {
+            "from": "package",
+            "package": "node:test",
+            "name": ["nodeTest"]
+          }
+        ],
         "allowForKnownSafePromises": []
       }
     ],
@@ -378,6 +384,12 @@
         "max-statements": "off",
         "max-lines-per-function": "off",
         "max-lines": "off"
+      }
+    },
+    {
+      "files": ["scripts/release-candidate.mjs"],
+      "rules": {
+        "typescript/no-unsafe-type-assertion": "off"
       }
     }
   ]

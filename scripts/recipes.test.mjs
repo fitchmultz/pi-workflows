@@ -3,10 +3,11 @@ import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } f
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import nodeTest from "node:test";
 import { fileURLToPath } from "node:url";
 import * as sdk from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { asRecord, customMessages, loopbackAddress, restoreEnv } from "./test-helpers.mjs";
 
 const {
   createAgentSession,
@@ -19,8 +20,26 @@ const {
 } = sdk;
 const root = fileURLToPath(new URL("..", import.meta.url));
 const prerequisites = ["subagent", "todo_list", "ask_question", "agent_browser_web_search"];
+/** @type {unknown} */
+const instructionGroupsProbe = Reflect.get(sdk, "instructionGroupsExtension");
+/**
+ * The fork-only export cannot be structurally verified beyond being callable;
+ * tests skip group cases when it is absent.
+ * @param {unknown} value
+ * @returns {value is import("@earendil-works/pi-coding-agent").ExtensionFactory}
+ */
+const isExtensionFactory = (value) => typeof value === "function";
+const instructionGroupsExtension = isExtensionFactory(instructionGroupsProbe)
+  ? instructionGroupsProbe
+  : undefined;
 
-test(
+/**
+ * @param {unknown} value
+ * @returns {value is (group: { name: string, description: string, tools: string[], instructions: () => string }) => void}
+ */
+const isCollector = (value) => typeof value === "function";
+
+nodeTest(
   "native recipe admission preserves selection, discovery, branch ownership and truthful failure",
   { timeout: 30_000 },
   async (t) => {
@@ -40,14 +59,19 @@ test(
         new URL("..", import.meta.resolve("@earendil-works/pi-coding-agent")),
       ),
     });
+    /** @type {Array<Record<string, unknown>>} */
     const requests = [];
     let holdNext = false;
+    /** @type {((value?: void) => void) | undefined} */
     let started;
+    /** @type {((value?: void) => void) | undefined} */
     let release;
-    const server = createServer(async (req, res) => {
-      let body = "";
-      for await (const chunk of req) body += chunk;
-      requests.push(JSON.parse(body));
+    const respond = (
+      /** @type {import("node:http").IncomingMessage} */ req,
+      /** @type {import("node:http").ServerResponse} */ res,
+      /** @type {string} */ body,
+    ) => {
+      requests.push(asRecord(JSON.parse(body)));
       res.writeHead(200, { "content-type": "text/event-stream" });
       const base = {
         id: "admission",
@@ -65,18 +89,36 @@ test(
       if (holdNext) {
         holdNext = false;
         release = finish;
-        started();
-      } else finish();
+        started?.();
+      } else {
+        finish();
+      }
+    };
+    const server = createServer((req, res) => {
+      /** @type {string} */
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", (/** @type {string} */ chunk) => {
+        body += chunk;
+      });
+      req.on("end", () => {
+        respond(req, res, body);
+      });
     });
     try {
-      await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+      await new Promise(
+        /** @param {(value?: void) => void} fulfill */ (fulfill) => {
+          server.listen(0, "127.0.0.1", fulfill);
+        },
+      );
+      const address = loopbackAddress(server);
       writeFileSync(
         join(agentDir, "models.json"),
         JSON.stringify({
           providers: {
             "admission-fixture": {
               api: "openai-completions",
-              baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
+              baseUrl: `http://127.0.0.1:${address.port}/v1`,
               apiKey: "fixture-only",
               models: [
                 {
@@ -199,14 +241,16 @@ test(
           config.name,
           {
             skip:
-              config.groups && !sdk.instructionGroupsExtension
+              config.groups === true && instructionGroupsExtension === undefined
                 ? "Fork-only real instructionGroupsExtension is not exported by this official host"
                 : false,
           },
           async () => {
             let forwarded = 0;
             let effects = 0;
+            /** @type {import("@earendil-works/pi-coding-agent").ExtensionAPI | undefined} */
             let controls;
+            /** @type {Map<string, import("@earendil-works/pi-coding-agent").ToolDefinition>} */
             const definitions = new Map();
             const settingsManager = SettingsManager.inMemory({
               compaction: { enabled: false },
@@ -216,15 +260,17 @@ test(
               cwd,
               agentDir,
               settingsManager,
-              projectTrusted: true,
               noContextFiles: true,
               extensionFactories: [
                 ...(config.discovery === "tool_search" ? [createToolSearchExtension()] : []),
                 ...(config.discovery === "codemode" ? [createCodemodeExtension()] : []),
-                ...(config.groups ? [sdk.instructionGroupsExtension] : []),
+                ...(config.groups === true && instructionGroupsExtension !== undefined
+                  ? [instructionGroupsExtension]
+                  : []),
                 (pi) => {
                   controls = pi;
                   for (const name of config.tools) {
+                    /** @type {import("@earendil-works/pi-coding-agent").ToolDefinition} */
                     const definition = {
                       name: config.foreign === name ? "other_provider_subagent" : name,
                       label: name,
@@ -249,7 +295,7 @@ test(
                         : {}),
                       ...(config.inactive === name ? { defaultActive: false } : {}),
                       parameters:
-                        name === "subagent" && !config.incompatible
+                        name === "subagent" && config.incompatible !== true
                           ? Type.Object({
                               agent: Type.String(),
                               task: Type.String(),
@@ -269,23 +315,32 @@ test(
                     definitions.set(name, definition);
                     pi.registerTool(definition);
                   }
-                  if (config.groups)
-                    pi.events.on("pi:instruction-groups", (collector) =>
-                      collector.register({
+                  if (config.groups === true) {
+                    pi.events.on("pi:instruction-groups", (/** @type {unknown} */ data) => {
+                      const collector = asRecord(data);
+                      const register = collector.register;
+                      if (!isCollector(register)) {
+                        throw new Error("instruction-groups collector contract");
+                      }
+                      register({
                         name: "browser",
                         description: "Browser capability fixture",
                         tools: ["agent_browser_web_search"],
                         instructions: () =>
                           "Read these browser instructions before using the fixture search capability.",
-                      }),
-                    );
-                  if (config.discovery)
+                      });
+                    });
+                  }
+                  if (config.discovery !== undefined) {
                     pi.on("session_start", () =>
                       pi.setActiveTools([...pi.getActiveTools(), config.discovery]),
                     );
+                  }
                   // Observe admitted recipes after the production handler, without executing a recipe.
                   pi.on("input", (event) => {
-                    if (!/^\/(?:skill:)?recipe-/.test(event.text)) return { action: "continue" };
+                    if (!/^\/(?:skill:)?recipe-/.test(event.text)) {
+                      return { action: "continue" };
+                    }
                     forwarded++;
                     return { action: "handled" };
                   });
@@ -294,6 +349,7 @@ test(
             });
             await loader.reload();
             assert.deepEqual(loader.getExtensions().errors, []);
+            assert.ok(controls !== undefined, "fixture extension must have initialized");
             const modelRuntime = await ModelRuntime.create({
               authPath: join(agentDir, "auth.json"),
               modelsPath: join(agentDir, "models.json"),
@@ -310,37 +366,36 @@ test(
               modelRuntime,
               model,
               sessionManager,
-              ...(config.excluded ? { excludeTools: [config.excluded] } : {}),
+              ...(config.excluded !== undefined ? { excludeTools: [config.excluded] } : {}),
             });
+            /** @type {unknown[]} */
             const errors = [];
-            const admit = async (command, missing) => {
+            const admit = async (
+              /** @type {string} */ command,
+              /** @type {string[]} */ missing,
+            ) => {
               const previousExitCode = process.exitCode;
-              const failuresBefore = session.messages.filter(
-                (message) => message.customType === "recipe-unavailable",
-              ).length;
+              const failuresBefore = customMessages(session.messages, "recipe-unavailable").length;
               const forwardedBefore = forwarded;
               try {
                 await session.prompt(command);
                 assert.equal(
                   process.exitCode,
-                  missing.length ? 1 : previousExitCode,
+                  missing.length > 0 ? 1 : previousExitCode,
                   "SDK consumers must receive the print failure status",
                 );
-                const failures = session.messages.filter(
-                  (message) => message.customType === "recipe-unavailable",
-                );
+                const failures = customMessages(session.messages, "recipe-unavailable");
+                const last = failures.at(-1);
                 assert.equal(
                   failures.length - failuresBefore,
-                  missing.length ? 1 : 0,
-                  JSON.stringify(failures.at(-1)?.details),
+                  missing.length > 0 ? 1 : 0,
+                  JSON.stringify(last?.details),
                 );
-                assert.equal(forwarded - forwardedBefore, missing.length ? 0 : 1);
-                if (missing.length) {
-                  assert.deepEqual(failures.at(-1).details.missing, missing);
-                  assert.match(
-                    JSON.stringify(failures.at(-1).content),
-                    /not started.*scripted.*workflow/i,
-                  );
+                assert.equal(forwarded - forwardedBefore, missing.length > 0 ? 0 : 1);
+                if (missing.length > 0) {
+                  assert.ok(last !== undefined, "recipe-unavailable must be recorded");
+                  assert.deepEqual(asRecord(last.details).missing, missing);
+                  assert.match(JSON.stringify(last.content), /not started.*scripted.*workflow/i);
                 }
               } finally {
                 process.exitCode = previousExitCode;
@@ -353,11 +408,12 @@ test(
                   errors.push(error);
                 },
               });
-              if (config.stale)
+              if (config.stale === true) {
                 sessionManager.appendCustomEntry("pi:instruction-groups", {
                   inactive: ["agent_browser_web_search"],
                 });
-              if (config.groups && !config.stale) {
+              }
+              if (config.groups === true && config.stale !== true) {
                 await admit("/recipe-task before deferral", []);
                 const requestsBefore = requests.length;
                 await session.prompt("Complete one ordinary fixture turn.");
@@ -369,17 +425,20 @@ test(
                 );
                 const nativeEntry = sessionManager
                   .getBranch()
-                  .findLast(
-                    (entry) =>
-                      entry.type === "custom" && entry.customType === "pi:instruction-groups",
-                  );
+                  .flatMap((entry) =>
+                    entry.type === "custom" && entry.customType === "pi:instruction-groups"
+                      ? [entry]
+                      : [],
+                  )
+                  .at(-1);
+                assert.ok(nativeEntry !== undefined, "native deferral entry must be recorded");
                 assert.deepEqual(
-                  nativeEntry.data.inactive,
+                  asRecord(nativeEntry.data).inactive,
                   ["agent_browser_web_search"],
                   "The real builtin, not the fixture, must publish the deferral",
                 );
               }
-              if (config.streaming) {
+              if (config.streaming === true) {
                 const requestsBefore = requests.length;
                 holdNext = true;
                 const requested = new Promise((resolve) => {
@@ -400,6 +459,7 @@ test(
                   assert.equal(process.exitCode, 1);
                 } finally {
                   process.exitCode = previousExitCode;
+                  assert.ok(release !== undefined, "held response must be registered");
                   release();
                   await turn;
                 }
@@ -408,20 +468,20 @@ test(
                   requestsBefore + 1,
                   "The diagnostic must not trigger a follow-up model request",
                 );
-                assert.deepEqual(
-                  session.messages.find((message) => message.customType === "recipe-unavailable")
-                    .details.missing,
-                  prerequisites,
-                );
+                const unavailable = customMessages(session.messages, "recipe-unavailable")[0];
+                assert.ok(unavailable !== undefined, "recipe-unavailable must be recorded");
+                assert.deepEqual(asRecord(unavailable.details).missing, prerequisites);
               } else {
                 for (const command of [
                   "/recipe-review docs/design/example.md",
                   "/skill:recipe-task fix the example",
-                ])
+                ]) {
                   await admit(command, config.missing);
+                }
               }
-              if (config.groups && !config.stale) {
+              if (config.groups === true && config.stale !== true) {
                 const nativeLeaf = sessionManager.getLeafId();
+                assert.ok(nativeLeaf !== null, "branch leaf must exist");
                 controls.setActiveTools(
                   controls.getActiveTools().filter((name) => name !== "todo_list"),
                 );
@@ -447,10 +507,9 @@ test(
                   "agent_browser_web_search",
                 ]);
                 controls.setActiveTools([...controls.getActiveTools(), "discover_tools"]);
-                controls.registerTool({
-                  ...definitions.get("agent_browser_web_search"),
-                  exposure: "hidden",
-                });
+                const browserDefinition = definitions.get("agent_browser_web_search");
+                assert.ok(browserDefinition !== undefined, "browser fixture must be registered");
+                controls.registerTool({ ...browserDefinition, exposure: "hidden" });
                 await admit("/recipe-task withdrawn registration cannot be restored", [
                   "agent_browser_web_search",
                 ]);
@@ -479,7 +538,6 @@ test(
           cwd,
           agentDir,
           settingsManager,
-          projectTrusted: true,
           noContextFiles: true,
           noSkills: true,
           noPromptTemplates: true,
@@ -514,7 +572,9 @@ test(
           await session.prompt("/skill:recipe-task independently");
           assert.equal(forwarded, 2);
           assert.equal(
-            session.messages.some((message) => message.customType === "recipe-unavailable"),
+            session.messages.some(
+              (message) => message.role === "custom" && message.customType === "recipe-unavailable",
+            ),
             false,
           );
         } finally {
@@ -524,11 +584,12 @@ test(
       });
     } finally {
       server.closeAllConnections();
-      await new Promise((resolve) => server.close(resolve));
-      for (const [key, value] of Object.entries(saved)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
+      await new Promise(
+        /** @param {(value?: void) => void} fulfill */ (fulfill) => {
+          server.close(() => fulfill());
+        },
+      );
+      restoreEnv(saved);
       rmSync(temp, { recursive: true, force: true });
     }
   },
