@@ -61,7 +61,10 @@ function run(command, args, options = {}) {
     timeout: 120_000,
     env: childEnv,
   });
-  return { status: result.status, output: `${result.stdout}${result.stderr}` };
+  // CI environments force colorized child output; strip ANSI escapes so
+  // diagnostic identity and location matching stay deterministic.
+  const raw = `${result.stdout}${result.stderr}`.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
+  return { status: result.status, output: raw };
 }
 
 /**
@@ -120,8 +123,17 @@ function lintScan(dir) {
 }
 
 /** @param {string} dir @returns {{ status: number | null, output: string }} */
+// --pretty false pins the plain `file(line,col): error TSxxxx` diagnostic
+// format so location and identity assertions hold in every environment.
 const typecheckProject = (dir) =>
-  run(process.execPath, [join(binDir, "tsc"), "--noEmit", "-p", join(dir, "tsconfig.json")]);
+  run(process.execPath, [
+    join(binDir, "tsc"),
+    "--noEmit",
+    "--pretty",
+    "false",
+    "-p",
+    join(dir, "tsconfig.json"),
+  ]);
 
 /** @param {string} file @returns {{ status: number | null, output: string }} */
 const checkFormat = (file) => run(oxfmtBin, ["--check", file]);
