@@ -721,6 +721,10 @@ control("8.2 acceptance wiring: each gate fails independently in a mutated copy"
     expectDiagnostic(lint, "eslint(eqeqeq)", "lint gate");
     const aggregate = gate("check:compat");
     assert.notEqual(aggregate.status, 0, "lint failure must fail the aggregate");
+    assert.ok(
+      aggregate.output.includes("eslint(eqeqeq)"),
+      "the aggregate must fail at the lint stage itself",
+    );
     writeFileSync(helpers, helpersOriginal);
     writeFileSync(
       extension,
@@ -764,15 +768,19 @@ control("8.2 acceptance wiring: test failure fails the aggregate through the ful
   put(
     join(copy, "scripts"),
     "wiring-fail.test.mjs",
-    'import assert from "node:assert/strict";\nimport { test as nodeTest } from "node:test";\nnodeTest("wiring", () => {\n  assert.equal(1, 2);\n});\n',
+    'import assert from "node:assert/strict";\nimport { test as nodeTest } from "node:test";\nnodeTest("wiring propagation probe", () => {\n  assert.equal(1, 2);\n});\n',
   );
   scripts.test = "node --test scripts/wiring-fail.test.mjs";
-  put(copy, "package.json", JSON.stringify(manifest, null, 2));
+  put(copy, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
   const aggregate = run("npm", ["run", "check:compat", "--silent"], {
     cwd: copy,
     pathBin: true,
   });
   assert.notEqual(aggregate.status, 0, "a failing test must fail the aggregate result");
+  assert.ok(
+    aggregate.output.includes("wiring propagation probe"),
+    "the aggregate must fail at the test stage itself, not an earlier gate",
+  );
 });
 
 control("8.2 acceptance wiring: policy failure fails the suite through this battery", () => {
