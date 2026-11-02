@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.2.5 - 2026-11-02
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Adopt the strict Oxlint and Oxfmt engineering standard (#28) ([81a1363](https://github.com/fitchmultz/pi-workflows/commit/81a1363a4e19bb1c4c0a9efc71da6671d8645b05))
+
+### What's Changed
+
+- Adopt the strict Oxlint and Oxfmt engineering standard (toolchain, formatting, records) by @fitchmultz in https://github.com/fitchmultz/pi-workflows/pull/28
+
+**Full Changelog**: https://github.com/fitchmultz/pi-workflows/compare/v0.2.4...v0.2.5
+
 ## 0.2.4 - 2026-11-01
 
 <!-- npm-release:unreleased:start -->
