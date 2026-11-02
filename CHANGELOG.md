@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.2.6 - 2026-11-02
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Enforce strict lint and compiler compliance across source and tests (#29) ([c725bb1](https://github.com/fitchmultz/pi-workflows/commit/c725bb18f795f6bae2e5790119c92a311a3893c0))
+
+### What's Changed
+
+- Enforce strict lint and compiler compliance across source and tests by @fitchmultz in https://github.com/fitchmultz/pi-workflows/pull/29
+
+**Full Changelog**: https://github.com/fitchmultz/pi-workflows/compare/v0.2.5...v0.2.6
+
 ## 0.2.5 - 2026-11-02
 
 <!-- npm-release:unreleased:start -->
