@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import nodeTest from "node:test";
 import xterm from "@xterm/headless";
-import * as nativeTui from "@earendil-works/pi-tui";
 import {
   CURSOR_MARKER,
   getKeybindings,
@@ -15,9 +14,9 @@ import {
   TuiMainScreen,
   visibleWidth,
 } from "@earendil-works/pi-tui";
-// The SDK ships its own shrinkwrapped pi-tui instance; CustomEditor's
-// constructor takes the SDK's KeybindingsManager class, so editor fixtures
-// construct that exact class rather than the top-level pi-tui one.
+// CustomEditor routes app keys through the SDK's app KeybindingsManager
+// subclass, which the package root exports only as a type, so editor
+// fixtures construct that exact class rather than the pi-tui base class.
 import { KeybindingsManager as SdkKeybindingsManager } from "../node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.js";
 import { approvalCard, KeywordEditor } from "../.pi/extensions/pi-workflows/ui.ts";
 import { isAllowed, keywordState } from "../.pi/extensions/pi-workflows/polish.ts";
@@ -360,9 +359,8 @@ for (const Screen of [TuiMainScreen, TuiAltScreen]) {
           "Highlight must not bleed into adjacent cells",
         );
       }
-      // Older supported hosts draw both cursors; marker-aware hosts suppress only the focused fake cursor.
-      const probe = /** @type {unknown} */ (Reflect.get(nativeTui, "renderFakeCursor"));
-      const fakeCursor = !hardware || typeof probe !== "function";
+      // Pi suppresses only the focused fake cursor while the hardware cursor is visible.
+      const fakeCursor = !hardware;
       const cursorCell = line.getCell(22);
       assert.ok(cursorCell !== undefined, "fixture cell must exist");
       assert.equal(Boolean(cursorCell.isInverse()), fakeCursor);

@@ -4,7 +4,7 @@
 
 ## Compatibility
 
-Pi 1.0.0 or later is the supported floor. Scripted workflows have no sibling prerequisite. Installed recipe profiles require Pi Subagents 0.44.4 or later and its `subagents.agents` manifest; a compatible `subagent` executor must support `agent`, `task`, `label` and `tasks`.
+Pi 1.5.0 or later is the supported floor. Scripted workflows have no sibling prerequisite. Installed recipe profiles require Pi Subagents 0.44.4 or later and its `subagents.agents` manifest; a compatible `subagent` executor must support `agent`, `task`, `label` and `tasks`.
 
 ## Git installation and migration
 
@@ -69,7 +69,7 @@ The packed consumer first installs workflows alone and exercises its native runt
 
 The callable [release qualification workflow](../.github/workflows/release-qualification.yml) runs that packed consumer on the shared preparation's retained tarball and exact official/fork host graphs. It verifies the host graph and candidate hash before the existing test, then rechecks the candidate hash; it does not replace the full compatibility checks.
 
-The supported/development baseline is official Pi 1.0.0, its exact eight-package 1.0 cohort, TypeBox 1.3.27 and physical Node 24.21.0 used for qualification. The shared compatibility runner installs the selected official or fork cohort in this checkout's `node_modules`. Tests verify SDK/types/manifest-bin identity rather than finding `pi` on PATH. This development baseline does not raise the Node/platform floor.
+The supported/development baseline is official Pi 1.5.0, its exact eight-package 1.5.0 cohort, TypeBox 1.3.27 and the Node 24 release used for qualification. The shared compatibility runner installs the selected official or fork cohort in this checkout's `node_modules`. Tests verify SDK/types/manifest-bin identity rather than finding `pi` on PATH. This development baseline does not raise the Node/platform floor.
 
 The child runs JSON print mode against a credential-free loopback provider, proving completed/length-limited results and awaited shutdown without paid calls. Tests select the exact `PI_PACKAGE_DIR`/SDK/manifest-bin identity in an isolated environment instead of an inherited live fork override.
 

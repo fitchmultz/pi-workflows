@@ -2,7 +2,7 @@
 
 ## Scope and decisions
 
-This is both a project-local `.pi` recipes/skills/agents/script kit and the public `@fitchmultz/pi-workflows` Pi package, not an AgentHarness rewrite. Pi 1.0.0 is the supported floor. Git installs and project use remain supported; the unscoped npm name belongs to an unrelated project and is never published here. Installed recipe profiles require `@fitchmultz/pi-subagents` 0.44.4+ and the package's `subagents.agents` manifest. Preserve project/user resources and live runtime/settings/auth during qualification.
+This is both a project-local `.pi` recipes/skills/agents/script kit and the public `@fitchmultz/pi-workflows` Pi package, not an AgentHarness rewrite. Pi 1.5.0 is the supported floor. Git installs and project use remain supported; the unscoped npm name belongs to an unrelated project and is never published here. Installed recipe profiles require `@fitchmultz/pi-subagents` 0.44.4+ and the package's `subagents.agents` manifest. Preserve project/user resources and live runtime/settings/auth during qualification.
 
 The canonical recipe sources are `reference/workflows` plus `scripts/build.mjs`; generated `.pi/{skills,agents,prompts}` and public `resources/` must only change through regeneration. The public runtime is copied from `.pi/extensions/pi-workflows`; its relative asset lookup resolves the public sibling resource trees. Private project state is not copied. Roles, task evidence, fresh child context and approval gates are unchanged. The scripted worker remains a JSON CLI child with explicit `--no-session`, `--no-approve`, disabled extension/skill/template discovery and the existing tool allowlist. It does not inherit recipe agent roles or become a new SDK worker engine.
 
@@ -35,6 +35,6 @@ Normal checks need no paid model. Native tests copy project assets into an isola
 
 `node --test scripts/ui.test.mjs` also runs the actual `KeywordEditor` through native `TuiMainScreen` and `TuiAltScreen`, using xterm's headless terminal backend (the same backend as Pi's virtual terminal). It checks focused/unfocused cursor markers, CJK column positioning, keyword highlighting without style bleed, and hardware cursor off → on → off.
 
-Marker-aware hosts exposing `renderFakeCursor` must suppress the focused fake cursor when the hardware cursor is visible; older supported hosts retain their existing inverse-video cursor. Only the cursor cell changes: the workflow phrase must stay highlighted. The test detects the optional public helper through the module namespace, with no static named import requiring it on official 1.1.0 or the c2031 fork.
+Pi suppresses the focused fake cursor when the hardware cursor is visible. Only the cursor cell changes: the workflow phrase must stay highlighted.
 
 These tests use the SDK/TUI graph selected by the shared compatibility runner. A separate check using exact upstream source for `CustomEditor` and TUI is source-only evidence, not qualification of a complete built SDK, bundled CLI, live terminal or IME. Test/development-only coverage does not require a runtime release or version bump.
