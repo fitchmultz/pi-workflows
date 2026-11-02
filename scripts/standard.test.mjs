@@ -78,7 +78,10 @@ function run(command, args, options = {}) {
  */
 function expectDiagnostic(result, diagnostic, label) {
   assert.notEqual(result.status, 0, `${label}: expected a failing exit status`);
-  assert.ok(result.output.includes(diagnostic), `${label}: expected ${diagnostic} in output`);
+  assert.ok(
+    result.output.includes(diagnostic),
+    `${label}: expected ${diagnostic} in output:\n${result.output.slice(0, 2000)}`,
+  );
 }
 
 /**
@@ -670,7 +673,7 @@ control("8.2 formatting and freshness: stale generated output fails the freshnes
   assert.notEqual(stale.status, 0, "stale generated output must fail npm run check");
 });
 
-control("8.2 integrity: policy downgrade is detected instead of passing silently", () => {
+control("8.2 integrity: downgrade detection mechanism works on a mutated config copy", () => {
   const dir = makeTempDir("downgrade");
   put(dir, "violation.mjs", "export const eq = (a, b) => a == b;\n");
   put(dir, "clean.mjs", "export const one = 1;\n");
@@ -686,7 +689,7 @@ control("8.2 integrity: policy downgrade is detected instead of passing silently
   );
 });
 
-control("8.2 integrity: omitted maintained source is detected instead of passing silently", () => {
+control("8.2 integrity: omission detection mechanism works on a mutated config copy", () => {
   const dir = makeTempDir("omitted");
   put(dir, "violation.mjs", "export const eq = (a, b) => a == b;\n");
   put(dir, "clean.mjs", "export const one = 1;\n");
@@ -784,18 +787,102 @@ control("8.2 acceptance wiring: test failure fails the aggregate through the ful
 });
 
 control("8.2 acceptance wiring: policy failure fails the suite through this battery", () => {
-  const dir = makeTempDir("policy");
-  put(dir, "violation.mjs", "export const eq = (a, b) => a == b;\n");
-  put(dir, "clean.mjs", "export const one = 1;\n");
+  const copy = archiveCopy();
   const config = asRecord(JSON.parse(readFileSync(join(repoRoot, ".oxlintrc.json"), "utf8")));
   asRecord(config.rules).eqeqeq = "off";
-  put(dir, ".oxlintrc.json", JSON.stringify(config, null, 2));
-  const downgraded = lintScan(dir);
-  assert.equal(downgraded.status, 0, "setup: downgraded policy passes the raw gate");
-  assert.throws(
-    () => expectDiagnostic(downgraded, "eslint(eqeqeq)", "policy wiring probe"),
-    /expected a failing exit status/,
-    "a policy downgrade fails this battery, which npm test chains into the aggregate",
+  put(copy, ".oxlintrc.json", `${JSON.stringify(config, null, 2)}\n`);
+  const battery = run(
+    process.execPath,
+    [
+      "--test",
+      "--test-name-pattern",
+      "explicit and category",
+      join("scripts", "standard.test.mjs"),
+    ],
+    { cwd: copy },
+  );
+  assert.notEqual(battery.status, 0, "a policy downgrade must fail the battery in the copy");
+  assert.ok(
+    battery.output.includes("explicit rule violation"),
+    "the failure must come from the eqeqeq control reading the copy's downgraded policy",
+  );
+});
+
+control("8.2 integrity: the repository policy snapshot is enforced", () => {
+  const config = asRecord(JSON.parse(readFileSync(join(repoRoot, ".oxlintrc.json"), "utf8")));
+  const rules = asRecord(config.rules);
+  const categories = asRecord(config.categories);
+  /** @type {(name: string) => string | null} */
+  const severity = (name) => {
+    const value = rules[name];
+    if (Array.isArray(value)) {
+      return asString(value[0]);
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    return null;
+  };
+  for (const name of [
+    "eqeqeq",
+    "no-debugger",
+    "no-empty",
+    "no-eval",
+    "typescript/no-explicit-any",
+    "typescript/no-unsafe-assignment",
+    "typescript/no-unsafe-type-assertion",
+    "typescript/no-floating-promises",
+    "typescript/no-misused-promises",
+    "typescript/strict-boolean-expressions",
+    "import/no-cycle",
+  ]) {
+    assert.equal(severity(name), "error", `${name} must stay at error severity`);
+  }
+  for (const name of ["correctness", "suspicious", "perf"]) {
+    assert.equal(categories[name], "error", `category ${name} must stay at error severity`);
+  }
+  const complexity = asArray(rules.complexity);
+  assert.equal(complexity[0], "error", "complexity must stay at error severity");
+  assert.equal(asRecord(complexity[1]).max, 10, "complexity limit must stay at 10");
+  const statements = asArray(rules["max-statements"]);
+  assert.equal(statements[0], "error", "max-statements must stay at error severity");
+  assert.equal(asRecord(statements[1]).max, 40, "max-statements limit must stay at 40");
+  const floating = asArray(rules["typescript/no-floating-promises"]);
+  const allowance = asArray(asRecord(floating[1]).allowForKnownSafeCalls);
+  const safeCall = asRecord(allowance[0]);
+  assert.equal(
+    asString(safeCall.package),
+    "node:test",
+    "the registration allowance must stay bounded to node:test",
+  );
+  assert.deepEqual(
+    asArray(safeCall.name).map(asString),
+    ["nodeTest"],
+    "the registration allowance must stay bounded to nodeTest",
+  );
+  const overrides = asArray(config.overrides).map(asRecord);
+  const testOverride = overrides.find((entry) =>
+    asArray(entry.files)
+      .map(asString)
+      .some((pattern) => pattern.includes(".test.")),
+  );
+  assert.ok(testOverride !== undefined, "the test-profile override must exist");
+  const testRules = asRecord(asRecord(testOverride).rules);
+  assert.equal(
+    asArray(testRules.complexity)[1] !== undefined,
+    true,
+    "test complexity limit must stay recorded",
+  );
+  assert.equal(
+    asRecord(asArray(testRules.complexity)[1]).max,
+    15,
+    "test complexity limit must stay at 15",
+  );
+  assert.equal(testRules["max-statements"], "off", "test statements limit must stay off");
+  assert.equal(
+    testRules["max-lines-per-function"],
+    "off",
+    "test function-length limit must stay off",
   );
 });
 
