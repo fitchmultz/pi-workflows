@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.2.10 - 2026-11-03
+
+<!-- npm-release:unreleased:start -->
+<!-- npm-release:unreleased:end -->
+
+- Skip no-op releases and restate malformed remediation dispositions (#39) ([6db684e](https://github.com/fitchmultz/pi-workflows/commit/6db684e9cc1e5169d6e2739322be041608f16178))
+
+### What's Changed
+
+- Skip no-op releases and restate malformed remediation dispositions by @fitchmultz in https://github.com/fitchmultz/pi-workflows/pull/39
+
+**Full Changelog**: https://github.com/fitchmultz/pi-workflows/compare/v0.2.9...v0.2.10
+
 ## 0.2.9 - 2026-11-02
 
 <!-- npm-release:unreleased:start -->
